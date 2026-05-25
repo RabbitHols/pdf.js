@@ -1,0 +1,271 @@
+.pdf-surface-shell {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--pdf-page-width, min(100%, 880px));
+  height: var(--pdf-page-height, calc(100vh - 210px));
+  min-height: var(--pdf-page-height, 720px);
+  transition:
+    width 120ms ease,
+    height 120ms ease;
+}
+
+.pdf-surface-container {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pdf-surface-container::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-surface-container .pdfViewer {
+  padding-bottom: 44px;
+}
+
+.pdf-surface-container .pdfViewer .page {
+  margin: 0 auto 24px;
+  border: 0;
+  box-shadow: var(--pdf-shadow);
+}
+
+.pdf-surface-container .textLayer ::selection {
+  background: rgb(0 90 255 / 0.28);
+}
+
+.pdf-surface-container .textLayer br::selection {
+  background: transparent;
+}
+
+.pdf-surface-container .pdfViewer.viewer-next-stamp-placement-active .page {
+  cursor: copy;
+}
+
+.pdf-surface-container .annotationEditorLayer .editToolbar,
+.pdf-surface-container .textLayer .editToolbar,
+.pdf-surface-container .annotationCommentButton,
+.pdf-surface-container .commentPopup,
+.pdf-surface-container #commentPopup,
+.viewer-next-comment-dialog {
+  display: none !important;
+}
+
+.pdf-surface-container
+  .annotationEditorLayer
+  :is(.inkEditor, .signatureEditor, .stampEditor)
+  > .resizers {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.selection-transform-overlay {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.selection-transform-frame {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid #2563eb;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.selection-transform-handle,
+.selection-transform-rotate,
+.selection-transform-toolbar button {
+  display: inline-grid;
+  box-sizing: border-box;
+  place-items: center;
+  border: 1px solid #2563eb;
+  background: #ffffff;
+  color: #1f2937;
+  pointer-events: auto;
+}
+
+.selection-transform-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  padding: 0;
+}
+
+.selection-transform-handle.nw {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.selection-transform-handle.ne {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.selection-transform-handle.se {
+  right: -5px;
+  bottom: -5px;
+  cursor: nwse-resize;
+}
+
+.selection-transform-handle.sw {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.selection-transform-rotate {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  padding: 0;
+  transform: translateX(-50%);
+}
+
+.selection-transform-rotate::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 1px;
+  height: 11px;
+  background: #2563eb;
+  content: "";
+}
+
+.selection-transform-rotate .symbol {
+  font-size: 16px;
+}
+
+.selection-transform-toolbar {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 0.18);
+  pointer-events: auto;
+  transform: translateY(-100%);
+}
+
+.selection-transform-toolbar button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.selection-transform-toolbar button + button {
+  border-left: 1px solid #e2e8f0;
+}
+
+.selection-transform-toolbar .symbol {
+  font-size: 17px;
+}
+
+.selection-transform-handle:disabled,
+.selection-transform-rotate:disabled,
+.selection-transform-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.empty-document {
+  display: flex;
+  width: min(816px, 90%);
+  min-height: 1056px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-raised);
+  box-shadow: var(--pdf-shadow);
+  text-align: center;
+}
+
+.empty-document h1 {
+  margin: 18px 0 8px;
+}
+
+.empty-document p {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.surface-error {
+  margin-bottom: 16px;
+  border: 1px solid var(--danger-line);
+  border-radius: 8px;
+  background: var(--danger-bg);
+  padding: 12px 14px;
+  color: var(--danger);
+}
+
+.pdf-surface-container .page.nativeRedactMode {
+  cursor: crosshair;
+}
+
+.editor-workspace .pdf-surface-shell {
+  position: absolute;
+  z-index: 0;
+  inset: 0 52px 0 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  transition: none;
+}
+
+.editor-workspace .pdf-surface-container {
+  padding: 50px 112px 72px 84px;
+}
+
+.pdf-surface-container .nativeRedactLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.pdf-surface-container .nativeRedactSelection {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid #111827;
+  background-color: rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+
+.pdf-surface-container .nativeRedactSelection.blocked {
+  border-color: #a4000f;
+  background-color: rgb(164 0 15 / 0.45);
+}
+
+.pdf-surface-container .nativeRedactRemove {
+  position: absolute;
+  inset-block-start: -7px;
+  inset-inline-end: -7px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  background: #111827;
+  color: #fff;
+  font: 10px/12px sans-serif;
+  pointer-events: auto;
+  text-align: center;
+}

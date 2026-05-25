@@ -1,6 +1,12 @@
 {
   "name": "pdf.js",
   "type": "module",
+  "scripts": {
+    "viewer-next:dev": "vite --config viewer-next/vite.config.mjs",
+    "viewer-next:build": "gulp generic components && vite build --config viewer-next/vite.config.mjs",
+    "viewer-next:smoke": "node viewer-next/scripts/smoke.mjs",
+    "build:viewer-next": "npm run viewer-next:build"
+  },
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.5",
@@ -12,6 +18,7 @@
     "@metalsmith/markdown": "^1.10.0",
     "@napi-rs/canvas": "^1.0.0",
     "@types/node": "^25.9.1",
+    "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
     "babel-loader": "^10.1.1",
     "babel-plugin-add-header-comment": "^1.0.3",
@@ -52,6 +59,8 @@
     "postcss-values-parser": "^8.0.0",
     "prettier": "^3.8.3",
     "puppeteer": "^24.43.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "stylelint": "^17.12.0",
     "stylelint-prettier": "^5.0.3",
     "svglint": "^4.2.1",
@@ -60,6 +69,7 @@
     "ttest": "^4.0.0",
     "typescript": "^6.0.3",
     "vinyl": "^3.0.1",
+    "vite": "^8.0.14",
     "webpack": "^5.107.1",
     "webpack-stream": "^7.0.0"
   },

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 112" role="img" aria-label="Confidential stamp">
+  <rect x="10" y="18" width="220" height="76" rx="10" fill="none" stroke="#b91c1c" stroke-width="8"/>
+  <circle cx="34" cy="56" r="9" fill="#b91c1c" opacity=".22"/>
+  <circle cx="206" cy="56" r="9" fill="#b91c1c" opacity=".22"/>
+  <text x="120" y="64" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" fill="#b91c1c">CONFIDENTIAL</text>
+</svg>

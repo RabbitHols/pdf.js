@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for the Viewer Next desktop shell.","local":true,"windows":["main"],"permissions":["core:default"]}}

@@ -1,0 +1,9 @@
+@import "@rewirepdf/pdfjs/viewer.css";
+@import "./styles/app-shell.css";
+@import "./styles/sidebars.css";
+@import "./styles/views.css";
+@import "./styles/editor.css";
+@import "./styles/pdf-surface.css";
+@import "./styles/convert.css";
+@import "./styles/merge.css";
+@import "./styles/responsive.css";

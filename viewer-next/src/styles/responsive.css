@@ -1,0 +1,12 @@
+@media (max-width: 1200px) {
+  .right-panel {
+    display: none;
+  }
+
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    min-width: 0;
+  }
+}

@@ -24,6 +24,24 @@ See https://github.com/adobe-type-tools/cmap-resources
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <script>
+      {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("ui") === "next") {
+          params.delete("ui");
+          if (!params.has("view")) {
+            params.set("view", "home");
+          }
+          const viewerNextUrl = new URL(
+            "../build/generic/viewer-next/index.html",
+            window.location.href
+          );
+          viewerNextUrl.search = params.toString();
+          viewerNextUrl.hash = window.location.hash;
+          window.location.replace(viewerNextUrl);
+        }
+      }
+    </script>
     <!--#if GENERIC || CHROME-->
     <meta name="google" content="notranslate" />
     <!--#endif-->

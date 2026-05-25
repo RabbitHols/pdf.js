@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CrabPDF Viewer Next",
+  "version": "0.1.0",
+  "identifier": "app.crabpdf.viewer-next",
+  "build": {
+    "beforeDevCommand": "npm --prefix .. run viewer-next:dev -- --host 127.0.0.1 --strictPort",
+    "beforeBuildCommand": "npm --prefix .. run viewer-next:build",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../../build/generic/viewer-next"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "CrabPDF Viewer Next",
+        "width": 1280,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 720,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.png"],
+    "targets": "all"
+  }
+}

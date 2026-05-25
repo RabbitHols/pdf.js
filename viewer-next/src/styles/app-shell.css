@@ -1,0 +1,553 @@
+:root {
+  color-scheme: light;
+  --accent: #275bb8;
+  --accent-strong: #17458f;
+  --accent-soft: #e9eefb;
+  --blue: var(--accent);
+  --blue-strong: var(--accent-strong);
+  --blue-soft: var(--accent-soft);
+  --text: #151922;
+  --text-strong: #10141d;
+  --ink: var(--text);
+  --muted: #596372;
+  --line: #d6dbe4;
+  --line-soft: #e8ebf0;
+  --panel: #ffffff;
+  --panel-raised: #ffffff;
+  --workspace: #f4f5f7;
+  --sidebar: #ffffff;
+  --field: #f8fafc;
+  --field-focus: #ffffff;
+  --hover: #f3f4f6;
+  --hover-strong: #eceff3;
+  --active: #e8eefc;
+  --button-bg: #f8fafc;
+  --button-hover: #eceff3;
+  --primary-button-bg: #151922;
+  --primary-button-text: #ffffff;
+  --primary-button-hover: #2c3442;
+  --primary-button-hover-text: #ffffff;
+  --pdf-shadow: 0 18px 40px rgba(17, 24, 39, 0.15);
+  --panel-shadow: 0 14px 28px rgba(17, 24, 39, 0.12);
+  --focus-ring: 0 0 0 2px rgba(39, 91, 184, 0.18);
+  --danger: #9b1c1c;
+  --danger-bg: #fff1f0;
+  --danger-line: #f2b8b5;
+  --success: #166534;
+  --success-bg: #effaf2;
+  --success-line: #b7d9c1;
+  --warning: #9a4b16;
+  --warning-bg: #fff7ed;
+  --warning-line: #fed7aa;
+  --radius: 8px;
+  --topbar: 52px;
+  font-family:
+    "Hanken Grotesk",
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #8fb4ff;
+  --accent-strong: #b9ccff;
+  --accent-soft: #26334b;
+  --text: #f3f4f6;
+  --text-strong: #ffffff;
+  --muted: #aeb6c2;
+  --line: #2b3038;
+  --line-soft: #232831;
+  --panel: #181b20;
+  --panel-raised: #1d2128;
+  --workspace: #111317;
+  --sidebar: #181b20;
+  --field: #20252d;
+  --field-focus: #242a33;
+  --hover: #242a33;
+  --hover-strong: #2a313b;
+  --active: #26334b;
+  --button-bg: #20252d;
+  --button-hover: #2a313b;
+  --primary-button-bg: #e8eefc;
+  --primary-button-text: #111827;
+  --primary-button-hover: #d9e4fb;
+  --primary-button-hover-text: #0f172a;
+  --pdf-shadow: 0 20px 46px rgba(0, 0, 0, 0.42);
+  --panel-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
+  --focus-ring: 0 0 0 2px rgba(143, 180, 255, 0.24);
+  --danger: #ffb4ac;
+  --danger-bg: #3b2021;
+  --danger-line: #6f3335;
+  --success: #9bd8aa;
+  --success-bg: #193421;
+  --success-line: #315d3a;
+  --warning: #f6c47b;
+  --warning-bg: #3a2b18;
+  --warning-line: #6b4c21;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--text);
+  background: var(--workspace);
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.symbol {
+  direction: ltr;
+  display: inline-block;
+  font-family: "Material Symbols Outlined";
+  font-feature-settings: "liga";
+  font-size: 22px;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  line-height: 1;
+  text-rendering: optimizeLegibility;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+}
+
+.symbol.large {
+  font-size: 48px;
+}
+
+.app-shell {
+  display: flex;
+  height: 100%;
+  min-width: 1024px;
+  flex-direction: column;
+}
+
+.topbar {
+  z-index: 20;
+  display: flex;
+  height: var(--topbar);
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.topbar-row {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-switcher-button,
+.brand-button {
+  display: flex;
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.document-switcher-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-button img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+
+.document-switcher-button:hover,
+.home-button:hover,
+.create-button:hover,
+.file-tab:hover,
+.tool-tabs button:hover {
+  background: var(--hover);
+}
+
+.home-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 6px;
+}
+
+.home-button.active {
+  background: var(--active);
+  color: var(--blue-strong);
+}
+
+.file-tabs {
+  display: flex;
+  min-width: 0;
+  max-width: min(720px, 46vw);
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  align-self: stretch;
+}
+
+.file-tab {
+  display: flex;
+  max-width: 230px;
+  height: 100%;
+  min-width: 120px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+}
+
+.file-tab.active {
+  border-color: var(--line);
+  border-bottom-color: var(--panel);
+  background: var(--panel);
+  box-shadow: 0 -1px 0 var(--panel) inset;
+}
+
+.file-tab.empty {
+  padding: 0 12px;
+  color: var(--muted);
+}
+
+.file-tab-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+}
+
+.file-tab-main .symbol {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.file-tab-main span,
+.file-tab.empty span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tab-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 4px;
+}
+
+.file-tab-close .symbol {
+  font-size: 18px;
+}
+
+.file-tab-close:hover {
+  background: var(--hover-strong);
+}
+
+.create-button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  font-weight: 700;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 8px;
+  background: var(--line);
+}
+
+.tool-tabs {
+  display: flex;
+  height: 100%;
+  align-items: stretch;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.tool-tabs button {
+  position: relative;
+  min-width: 76px;
+  padding: 0 12px;
+  border-radius: 0;
+  font-size: 14px;
+}
+
+.tool-tabs button.active {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.tool-tabs button.active::after {
+  position: absolute;
+  right: 12px;
+  bottom: 0;
+  left: 12px;
+  height: 3px;
+  background: var(--text-strong);
+  content: "";
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.icon-button {
+  display: inline-flex;
+  min-width: 36px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.icon-button.labeled {
+  width: auto;
+  min-width: 112px;
+  padding: 0 8px 0 12px;
+  font-weight: 500;
+}
+
+.icon-button.labeled span:not(.symbol) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.icon-button.active {
+  background: var(--active);
+  color: var(--blue-strong);
+}
+
+.theme-toggle-button .symbol {
+  font-size: 21px;
+}
+
+.search-control {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-raised);
+  padding: 10px;
+}
+
+.search-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.search-options {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.search-entry-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  padding: 0 10px 0 9px;
+}
+
+.search-input-row {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.search-entry-row > .symbol {
+  color: var(--muted);
+  font-size: 19px;
+}
+
+.search-entry-row input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.search-entry-row input::placeholder {
+  color: var(--muted);
+}
+
+.search-count {
+  min-width: 48px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.search-control[data-find-state="not-found"] .search-count {
+  color: var(--danger);
+}
+
+.search-control button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 5px;
+}
+
+.search-control button:hover:not(:disabled) {
+  background: var(--button-hover);
+  color: var(--text-strong);
+}
+
+.search-control button .symbol {
+  font-size: 20px;
+}
+
+.search-control button.active {
+  background: var(--active);
+  color: var(--blue-strong);
+}
+
+.search-control button:not(:has(.symbol)) {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.document-action-status {
+  max-width: 180px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field);
+  padding: 7px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-action-status.done {
+  border-color: var(--success-line);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.document-action-status.error {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.document-action-status.warning {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.download-button {
+  min-width: 98px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--primary-button-bg);
+  color: var(--primary-button-text);
+  padding: 0 18px;
+  font-weight: 800;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.download-button:hover:not(:disabled) {
+  background: var(--primary-button-hover);
+  color: var(--primary-button-hover-text);
+  box-shadow: var(--focus-ring);
+}
+
+.download-button:disabled {
+  background: var(--button-hover);
+  color: var(--muted);
+}
+
+.app-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}

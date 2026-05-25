@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 112" role="img" aria-label="Sign here stamp">
+  <rect x="12" y="18" width="216" height="76" rx="8" fill="none" stroke="#7c3aed" stroke-width="7"/>
+  <path d="M38 73h164" stroke="#7c3aed" stroke-width="3" stroke-linecap="round"/>
+  <path d="M44 44h40m-16-16 16 16-16 16" fill="none" stroke="#7c3aed" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="145" y="52" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" fill="#7c3aed">SIGN HERE</text>
+</svg>

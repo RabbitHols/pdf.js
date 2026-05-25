@@ -1,0 +1,16 @@
+[package]
+name = "viewer-next-tauri"
+version = "0.1.0"
+description = "Thin Tauri shell for CrabPDF Viewer Next"
+authors = ["CrabPDF"]
+license = "Apache-2.0"
+repository = ""
+edition = "2021"
+rust-version = "1.80"
+default-run = "viewer-next-tauri"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 112" role="img" aria-label="Approved stamp">
+  <rect x="10" y="18" width="220" height="76" rx="10" fill="none" stroke="#15803d" stroke-width="8"/>
+  <rect x="20" y="28" width="200" height="56" rx="5" fill="none" stroke="#15803d" stroke-width="2" opacity=".55"/>
+  <text x="120" y="66" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="800" fill="#15803d">APPROVED</text>
+</svg>
