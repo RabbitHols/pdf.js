@@ -483,6 +483,14 @@ export const drawToolOptions = [
   ["stamp-palette", "approval", "Palette timbri"],
 ];
 
+export const drawMenuToolOptions = drawToolOptions.filter(
+  ([id]) => id !== "stamp-palette"
+);
+
+export const stampPaletteToolOption = drawToolOptions.find(
+  ([id]) => id === "stamp-palette"
+);
+
 export const highlightColors = [
   ["#ffea00", "Yellow"],
   ["#ff5a1f", "Orange"],

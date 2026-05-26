@@ -715,7 +715,6 @@ function PdfSearchPanel({ onGoToSearchResult, onSearch, viewerState }) {
 
 function HistoryPanel({
   editHistory,
-  onClearHistory,
   onRedo,
   onSelectHistoryEntry,
   onUndo,
@@ -752,10 +751,6 @@ function HistoryPanel({
         <button disabled={!canRedo} onClick={onRedo} type="button">
           <Icon>redo</Icon>
           {t("Ripristina")}
-        </button>
-        <button disabled={!hasHistory} onClick={onClearHistory} type="button">
-          <Icon>delete_sweep</Icon>
-          {t("Cancella storico")}
         </button>
       </div>
       {hasHistory ? (
@@ -1049,7 +1044,6 @@ export function EditorContextSideNav({
   onCancelPendingComment,
   onAddCommentToSelection,
   onAddBookmarkFromSelection,
-  onClearHistory,
   onDeleteBookmark,
   onDeleteSelection,
   onGoToBookmark,
@@ -1129,21 +1123,6 @@ export function EditorContextSideNav({
               <Icon>note_add</Icon>
             </button>
           ) : null}
-          {activePanel === "history" ? (
-            <button
-              aria-label={t("Cancella storico")}
-              disabled={
-                !(
-                  viewerState.editing?.runtimeHistory?.entries?.length ||
-                  editHistory?.entries?.length
-                )
-              }
-              onClick={onClearHistory}
-              type="button"
-            >
-              <Icon>delete_sweep</Icon>
-            </button>
-          ) : null}
           {activePanel !== "bookmarks" && showUnimplementedTools ? (
             <button aria-label={t("Altre opzioni")} type="button">
               <Icon>more_horiz</Icon>
@@ -1187,7 +1166,6 @@ export function EditorContextSideNav({
       {activePanel === "history" ? (
         <HistoryPanel
           editHistory={editHistory}
-          onClearHistory={onClearHistory}
           onRedo={onRedo}
           onSelectHistoryEntry={onSelectHistoryEntry}
           onUndo={onUndo}

@@ -155,6 +155,9 @@ export function EditSideNav({
     const isDeletePage = action === "delete-page";
     const policy = getActionPolicy(action);
     const policyDisabled = action && !policy.enabled;
+    const pagesCount = viewerState.pagesCount || 0;
+    const deletePageDisabled =
+      disabled || !action || viewerState.loading || pagesCount <= 0;
     return (
       <button
         aria-label={t(label)}
@@ -162,12 +165,20 @@ export function EditSideNav({
         data-page-action={label}
         disabled={
           isDeletePage
-            ? (viewerState.pagesCount || 0) <= 1 || policyDisabled
+            ? deletePageDisabled
             : disabled || !action || policyDisabled
         }
         key={label}
         onClick={() => runAction(action)}
-        title={policyDisabled ? policy.reason : t(title || label)}
+        title={
+          isDeletePage
+            ? pagesCount <= 1
+              ? t("Non puoi eliminare tutte le pagine.")
+              : t(title || label)
+            : policyDisabled
+              ? policy.reason
+              : t(title || label)
+        }
         type="button"
       >
         <Icon>{icon}</Icon>

@@ -1,4 +1,4 @@
-import { drawToolOptions } from "../../app/toolData.js";
+import { drawMenuToolOptions } from "../../app/toolData.js";
 import { useTranslation } from "../../i18n/index.js";
 import { Icon } from "../Icon.jsx";
 import { ColorPickerButton } from "./ColorPickerButton.jsx";
@@ -53,7 +53,7 @@ export function DrawToolPicker({
 
   return (
     <div className="draw-tool-picker" role="menu" aria-label={t("Draw type")}>
-      {drawToolOptions.map(option => {
+      {drawMenuToolOptions.map(option => {
         const [id, optionIcon, optionLabel] = option;
         const isSelected = selectedDrawTool[0] === id;
         return (

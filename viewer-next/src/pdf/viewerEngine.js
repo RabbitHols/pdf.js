@@ -227,9 +227,41 @@ export async function createViewerEngine({
     }
     emitState();
   }
-  document.addEventListener("selectionchange", updateSelectionInteractionState);
-  window.addEventListener("mouseup", updateSelectionInteractionState);
-  window.addEventListener("keyup", updateSelectionInteractionState);
+  let selectionStateFrame = 0;
+  let selectionStateTimer = 0;
+  function scheduleSelectionInteractionStateUpdate() {
+    if (selectionStateFrame) {
+      cancelAnimationFrame(selectionStateFrame);
+    }
+    if (selectionStateTimer) {
+      clearTimeout(selectionStateTimer);
+      selectionStateTimer = 0;
+    }
+    selectionStateFrame = requestAnimationFrame(() => {
+      selectionStateFrame = 0;
+      updateSelectionInteractionState();
+      selectionStateTimer = window.setTimeout(() => {
+        selectionStateTimer = 0;
+        updateSelectionInteractionState();
+      }, 0);
+    });
+  }
+  document.addEventListener(
+    "selectionchange",
+    scheduleSelectionInteractionStateUpdate
+  );
+  window.addEventListener("pointerdown", scheduleSelectionInteractionStateUpdate, {
+    capture: true,
+  });
+  window.addEventListener("pointerup", scheduleSelectionInteractionStateUpdate, {
+    capture: true,
+  });
+  window.addEventListener("mouseup", scheduleSelectionInteractionStateUpdate, {
+    capture: true,
+  });
+  window.addEventListener("keyup", scheduleSelectionInteractionStateUpdate, {
+    capture: true,
+  });
   function onEditingStatesChanged(event) {
     editingState = {
       ...editingState,
@@ -727,10 +759,34 @@ export async function createViewerEngine({
       bookmarkLoadId++;
       document.removeEventListener(
         "selectionchange",
-        updateSelectionInteractionState
+        scheduleSelectionInteractionStateUpdate
       );
-      window.removeEventListener("mouseup", updateSelectionInteractionState);
-      window.removeEventListener("keyup", updateSelectionInteractionState);
+      window.removeEventListener(
+        "pointerdown",
+        scheduleSelectionInteractionStateUpdate,
+        { capture: true }
+      );
+      window.removeEventListener(
+        "pointerup",
+        scheduleSelectionInteractionStateUpdate,
+        { capture: true }
+      );
+      window.removeEventListener(
+        "mouseup",
+        scheduleSelectionInteractionStateUpdate,
+        { capture: true }
+      );
+      window.removeEventListener(
+        "keyup",
+        scheduleSelectionInteractionStateUpdate,
+        { capture: true }
+      );
+      if (selectionStateFrame) {
+        cancelAnimationFrame(selectionStateFrame);
+      }
+      if (selectionStateTimer) {
+        clearTimeout(selectionStateTimer);
+      }
       viewer.removeEventListener("pointerdown", onDrawModePointerDown, true);
       eventBus.off("editingstateschanged", onEditingStatesChanged);
       eventBus.off("editinghistorychanged", onEditingHistoryChanged);

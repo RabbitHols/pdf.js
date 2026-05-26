@@ -31,7 +31,6 @@ export function SideNav({
   onExtractPages,
   onSplitPages,
   onAddBookmarkFromSelection,
-  onClearHistory,
   onCloseEditorPanel,
   onDeleteBookmark,
   onDeleteSavedSignature,
@@ -80,7 +79,6 @@ export function SideNav({
         onCancelPendingComment={onCancelPendingComment}
         onAddCommentToSelection={onAddCommentToSelection}
         onAddBookmarkFromSelection={onAddBookmarkFromSelection}
-        onClearHistory={onClearHistory}
         onDeleteBookmark={onDeleteBookmark}
         onGoToBookmark={onGoToBookmark}
         onGoToComment={onGoToComment}

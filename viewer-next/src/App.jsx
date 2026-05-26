@@ -908,27 +908,6 @@ export function App() {
     await editHistory.redo();
   }, [editHistory, pdfActions, viewerState.editing?.hasSomethingToRedo]);
 
-  const clearHistory = useCallback(async () => {
-    const nativeEditing = viewerState.nativeEditing || {};
-    pdfActions.clearHistory();
-    persistedRuntimeHistoryIdsRef.current = new Set(
-      (viewerState.editing?.runtimeHistory?.entries || []).map(
-        entry => entry.id
-      )
-    );
-    nativeHistoryStateRef.current = {
-      activeDocumentId: editHistory.documentId,
-      redactionPatches: nativeEditing.redactionPatches || 0,
-      textEditCommitted: Boolean(nativeEditing.textEditCommitted),
-    };
-    await editHistory.clear();
-  }, [
-    editHistory,
-    pdfActions,
-    viewerState.editing?.runtimeHistory?.entries,
-    viewerState.nativeEditing,
-  ]);
-
   const selectHistoryEntry = useCallback(
     async entry => {
       if (!entry) {
@@ -1215,10 +1194,11 @@ export function App() {
       type: "delete-page",
     });
     try {
-      const order = Array.from(
+      const originalOrder = Array.from(
         { length: pagesCount },
         (_, index) => index + 1
-      ).filter(page => page !== pageNumber);
+      );
+      const order = originalOrder.filter(page => page !== pageNumber);
       const exportData = await pdfActions.organizePages({ order });
       if (!exportData?.data) {
         throw new Error(t("PDF non disponibile"));
@@ -1238,7 +1218,13 @@ export function App() {
         afterTabId: afterPdf?.id,
         beforeTabId,
         label: t("Pagina {{page}} eliminata", { page: pageNumber }),
-        payload: { pageNumber },
+        payload: {
+          pageNumber,
+          pagesAfter: order.length,
+          pagesBefore: pagesCount,
+          remainingOrder: order,
+          sourceOrder: originalOrder,
+        },
         type: "delete-page",
       });
       setDocumentActionStatus({
@@ -1699,7 +1685,6 @@ export function App() {
           onExtractPages={extractPages}
           onSplitPages={splitPages}
           onAddBookmarkFromSelection={addBookmarkFromSelection}
-          onClearHistory={clearHistory}
           onDeleteBookmark={pdfActions.deleteBookmark}
           onDeleteSavedSignature={pdfActions.deleteSavedSignature}
           onGoToBookmark={pdfActions.goToBookmark}

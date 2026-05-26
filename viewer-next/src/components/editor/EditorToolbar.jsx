@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { shouldShowUnimplementedTools } from "../../app/debugSettings.js";
 import { getPdfActionPolicy } from "../../app/pdfActionPolicy.js";
 import {
-  drawToolOptions,
+  drawMenuToolOptions,
   getVisibleEditorTools,
+  stampPaletteToolOption,
 } from "../../app/toolData.js";
 import { useFloatingToolbarPosition } from "../../hooks/useFloatingToolbarPosition.js";
 import { useTranslation } from "../../i18n/index.js";
@@ -14,7 +15,8 @@ import { SignatureToolPicker } from "./SignatureToolPicker.jsx";
 
 function getDrawToolOption(toolId) {
   return (
-    drawToolOptions.find(option => option[0] === toolId) || drawToolOptions[0]
+    drawMenuToolOptions.find(option => option[0] === toolId) ||
+    drawMenuToolOptions[0]
   );
 }
 
@@ -62,7 +64,9 @@ export function EditorToolbar({
     toolbarPosition,
     toolbarRef,
   } = useFloatingToolbarPosition();
-  const [selectedDrawTool, setSelectedDrawTool] = useState(drawToolOptions[0]);
+  const [selectedDrawTool, setSelectedDrawTool] = useState(
+    drawMenuToolOptions[0]
+  );
   const [drawStyle, setDrawStyle] = useState({
     color: "#1f2937",
     fillColor: "",
@@ -93,6 +97,8 @@ export function EditorToolbar({
   const visibleEditorTools = getVisibleEditorTools({
     showDebug: shouldShowUnimplementedTools(),
   });
+  const isStampPaletteActive = activeDrawTool === "stamp-palette";
+  const stampPolicy = getPdfActionPolicy("stamp-palette", policyFacts, t);
 
   useEffect(() => {
     onSetDrawStyle?.(drawStyle);
@@ -135,10 +141,6 @@ export function EditorToolbar({
 
   function selectDrawTool(option) {
     setSelectedDrawTool(option);
-    if (option[0] === "stamp-palette") {
-      onOpenStampPanel?.();
-      return;
-    }
     onSetDrawTool(option[0]);
   }
 
@@ -155,8 +157,8 @@ export function EditorToolbar({
       ? "highlight"
       : isDrawExpanded
         ? "ink"
-        : activeDrawTool === "stamp-palette"
-          ? "ink"
+        : isStampPaletteActive
+          ? "stamp-palette"
           : selectedDrawToolId
             ? "ink"
             : confirmedActiveTool;
@@ -200,6 +202,8 @@ export function EditorToolbar({
         const isImage = tool === "image";
         const isSignature = tool === "signature";
         const isComment = tool === "comment";
+        const stampTool = stampPaletteToolOption;
+        const shouldRenderStampButton = isDraw && stampTool;
         const policy = getPdfActionPolicy(tool, policyFacts, t);
         if (isComment && !canComment && policy.enabled) {
           return null;
@@ -274,6 +278,29 @@ export function EditorToolbar({
                 selectedDrawTool={selectedDrawTool}
               />
             ) : null}
+            {shouldRenderStampButton ? (
+              <button
+                aria-label={t(stampTool[2])}
+                className={
+                  activeDrawTool === stampTool[0]
+                    ? "active stamp-toolbar-button"
+                    : "stamp-toolbar-button"
+                }
+                disabled={!stampPolicy.enabled}
+                onClick={() => {
+                  if (stampPolicy.enabled) {
+                    onOpenStampPanel?.();
+                    setIsDrawExpanded(false);
+                    setIsSignatureExpanded(false);
+                    setIsHighlightExpanded(false);
+                  }
+                }}
+                title={stampPolicy.enabled ? t(stampTool[2]) : stampPolicy.reason}
+                type="button"
+              >
+                <Icon>{stampTool[1]}</Icon>
+              </button>
+            ) : null}
             {isHighlight && isHighlightExpanded ? (
               <HighlightColorPicker
                 highlightColor={highlightColor}
@@ -298,6 +325,10 @@ export function EditorToolbar({
         className="delete-selection-button"
         disabled={!canDelete || !deletePolicy.enabled}
         onClick={onDeleteSelection}
+        onPointerDown={event => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         title={
           deletePolicy.enabled
             ? t("Delete selection")
