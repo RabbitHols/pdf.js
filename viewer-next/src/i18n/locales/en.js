@@ -22,6 +22,7 @@ export const en = {
   "Altre opzioni": "More options",
   Altro: "More",
   "Annulla apertura link": "Cancel",
+  "Annulla apertura PDF": "Cancel",
   Annulla: "Undo",
   Aperto: "Open",
   "Apri PDF": "Open PDF",
@@ -41,8 +42,22 @@ export const en = {
   Chiaro: "Light",
   "Passa al tema chiaro": "Switch to light theme",
   "Passa al tema scuro": "Switch to dark theme",
+  "Il PDF selezionato non puo essere visualizzato.":
+    "The selected PDF could not be rendered.",
+  "Inserisci una password.": "Enter a password.",
+  "La password non e corretta. Riprova.": "The password is incorrect. Try again.",
+  "Password errata": "Incorrect password",
+  "Password PDF": "PDF password",
+  "Password richiesta per aprire il PDF.":
+    "A password is required to open this PDF.",
+  "PDF protetto": "Protected PDF",
   "Questo link aprira un sito esterno in una nuova scheda.":
     "This link will open an external site in a new tab.",
+  "Questo PDF richiede una password per essere aperto.":
+    "This PDF requires a password to open.",
+  Sblocca: "Unlock",
+  "Sblocca documento": "Unlock document",
+  "Verifica password...": "Checking password...",
   "Chiudi {{name}}": "Close {{name}}",
   "Chiudi {{title}}": "Close {{title}}",
   Chiudi: "Close",

@@ -13,6 +13,29 @@ const wasmUrl = getPdfjsAssetUrl("wasm");
 
 export { pdfjsLib };
 
+export const PDF_PASSWORD_REQUEST_REASONS = Object.freeze({
+  INCORRECT_PASSWORD: "incorrect-password",
+  NEED_PASSWORD: "need-password",
+});
+
+export class PdfPasswordCancelledError extends Error {
+  constructor() {
+    super("viewer-next-pdf-password-cancelled");
+    this.name = "PdfPasswordCancelledError";
+  }
+}
+
+export function isPdfPasswordCancelledError(reason) {
+  return reason instanceof PdfPasswordCancelledError;
+}
+
+function normalizePasswordReason(reason) {
+  if (reason === pdfjsLib.PasswordResponses?.INCORRECT_PASSWORD) {
+    return PDF_PASSWORD_REQUEST_REASONS.INCORRECT_PASSWORD;
+  }
+  return PDF_PASSWORD_REQUEST_REASONS.NEED_PASSWORD;
+}
+
 function normalizeDocumentSource(source) {
   if (source instanceof Uint8Array) {
     return {
@@ -39,8 +62,8 @@ function normalizeDocumentSource(source) {
   return source;
 }
 
-export function loadPdfDocument(source) {
-  return pdfjsLib.getDocument({
+export function loadPdfDocument(source, { onPasswordRequest } = {}) {
+  const loadingTask = pdfjsLib.getDocument({
     ...normalizeDocumentSource(source),
     cMapPacked: true,
     cMapUrl,
@@ -50,4 +73,35 @@ export function loadPdfDocument(source) {
     standardFontDataUrl,
     wasmUrl,
   });
+
+  if (typeof onPasswordRequest === "function") {
+    const passwordState = {
+      cancelled: false,
+    };
+    loadingTask.viewerNextPasswordState = passwordState;
+    loadingTask.onPassword = (updatePassword, reason) => {
+      let settled = false;
+      const passwordRequest = {
+        cancel: () => {
+          if (settled || passwordState.cancelled || loadingTask.destroyed) {
+            return;
+          }
+          settled = true;
+          passwordState.cancelled = true;
+          loadingTask.destroy();
+        },
+        reason: normalizePasswordReason(reason),
+        submit: password => {
+          if (settled || passwordState.cancelled || loadingTask.destroyed) {
+            return;
+          }
+          settled = true;
+          updatePassword(password || "");
+        },
+      };
+      onPasswordRequest(passwordRequest);
+    };
+  }
+
+  return loadingTask;
 }

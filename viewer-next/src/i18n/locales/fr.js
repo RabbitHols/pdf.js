@@ -20,6 +20,7 @@ export const fr = {
   "Altre opzioni": "Autres options",
   Altro: "Plus",
   "Annulla apertura link": "Annuler",
+  "Annulla apertura PDF": "Annuler",
   Annulla: "Annuler",
   "Annulla modifica": "Annuler la modification",
   Aperto: "Ouvert",
@@ -118,6 +119,21 @@ export const fr = {
   "Formato immagine": "Format image",
   "Formatta il testo": "Mettre en forme le texte",
   Freccia: "Fleche",
+  "Il PDF selezionato non puo essere visualizzato.":
+    "Le PDF selectionne n'a pas pu etre affiche.",
+  "Inserisci una password.": "Saisissez un mot de passe.",
+  "La password non e corretta. Riprova.":
+    "Le mot de passe est incorrect. Reessayez.",
+  "Password errata": "Mot de passe incorrect",
+  "Password PDF": "Mot de passe PDF",
+  "Password richiesta per aprire il PDF.":
+    "Un mot de passe est requis pour ouvrir ce PDF.",
+  "PDF protetto": "PDF protege",
+  "Questo PDF richiede una password per essere aperto.":
+    "Ce PDF necessite un mot de passe pour etre ouvert.",
+  Sblocca: "Deverrouiller",
+  "Sblocca documento": "Deverrouiller le document",
+  "Verifica password...": "Verification du mot de passe...",
   Fumetto: "Nuage",
   Gestisci: "Gerer",
   "Gestisci i segnalibri del PDF aperto.":

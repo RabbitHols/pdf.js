@@ -1,6 +1,6 @@
 import http from "node:http";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
@@ -165,6 +165,102 @@ async function openPdfBytesInViewer(browser, { bytes, name }) {
   });
   await viewerPage.waitForSelector(".textLayer", { timeout: 15000 });
   return viewerPage;
+}
+
+async function smokePasswordProtectedPdf(browser) {
+  const encryptedPdfBytes = Array.from(
+    await readFile(path.join(pdfjsRepoRoot, "test/pdfs/pr6531_2.pdf"))
+  );
+  const passwordPage = await browser.newPage();
+  await installBrowserSpies(passwordPage);
+  await passwordPage.evaluateOnNewDocument(
+    ({ bytes }) => {
+      localStorage.setItem(
+        "rewirepdf.viewerNext.preferences",
+        JSON.stringify({
+          defaultExportFilename: "{name}-edited.pdf",
+          rememberRecentDocuments: false,
+        })
+      );
+
+      function bytesToBase64(bytesArray) {
+        const chunkSize = 0x8000;
+        let binary = "";
+        for (let i = 0; i < bytesArray.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytesArray.slice(i, i + chunkSize));
+        }
+        return btoa(binary);
+      }
+
+      const metadata = {
+        id: "smoke-protected-pdf",
+        name: "protected.pdf",
+        openedAt: Date.now(),
+        size: bytes.length,
+        type: "application/pdf",
+        bytes: bytesToBase64(bytes),
+      };
+      sessionStorage.removeItem("rewirepdf.viewerNext.pdfTabs");
+      sessionStorage.removeItem("rewirepdf.viewerNext.activePdfTab");
+      sessionStorage.setItem(
+        "rewirepdf.viewerNext.pendingPdf",
+        JSON.stringify(metadata)
+      );
+    },
+    { bytes: encryptedPdfBytes }
+  );
+  await passwordPage.goto(directViewerUrl("edit"), {
+    waitUntil: "networkidle0",
+  });
+  await passwordPage.waitForSelector(
+    '.pdf-password-dialog input[type="password"]',
+    { timeout: 15000 }
+  );
+  const initialPasswordPromptState = await passwordPage.evaluate(() => ({
+    canvasCount: document.querySelectorAll(".pdfViewer .page canvas").length,
+    hasDialog: Boolean(document.querySelector(".pdf-password-dialog")),
+    title: document.querySelector(".pdf-password-dialog h3")?.textContent.trim(),
+  }));
+  if (
+    !initialPasswordPromptState.hasDialog ||
+    initialPasswordPromptState.canvasCount !== 0 ||
+    initialPasswordPromptState.title !== "Unlock document"
+  ) {
+    throw new Error("Viewer Next password prompt did not open for encrypted PDF");
+  }
+  await passwordPage.type('.pdf-password-dialog input[type="password"]', "bad");
+  await passwordPage.click(".pdf-password-dialog footer button.primary");
+  await passwordPage.waitForSelector(".pdf-password-error", { timeout: 10000 });
+  const incorrectPasswordState = await passwordPage.evaluate(() => ({
+    error: document.querySelector(".pdf-password-error")?.textContent.trim(),
+    message: document.querySelector(".pdf-password-body p")?.textContent.trim(),
+  }));
+  if (
+    incorrectPasswordState.error !== "Incorrect password" ||
+    !incorrectPasswordState.message.includes("incorrect")
+  ) {
+    throw new Error("Viewer Next password prompt did not show retry error");
+  }
+  await passwordPage.type(
+    '.pdf-password-dialog input[type="password"]',
+    "asdfasdf"
+  );
+  await passwordPage.click(".pdf-password-dialog footer button.primary");
+  await passwordPage.waitForSelector(".pdfViewer .page canvas", {
+    timeout: 15000,
+  });
+  await passwordPage.waitForSelector(".textLayer", { timeout: 15000 });
+  const unlockedPasswordState = await passwordPage.evaluate(() => ({
+    hasDialog: Boolean(document.querySelector(".pdf-password-dialog")),
+    pageCount: document.querySelectorAll(".pdfViewer .page").length,
+  }));
+  if (
+    unlockedPasswordState.hasDialog ||
+    unlockedPasswordState.pageCount < 1
+  ) {
+    throw new Error("Viewer Next encrypted PDF did not render after unlock");
+  }
+  await passwordPage.close();
 }
 
 async function openSearchControl(page) {
@@ -2394,6 +2490,7 @@ try {
   ) {
     throw new Error("Viewer Next smoke assertions failed");
   }
+  await smokePasswordProtectedPdf(browser);
 } finally {
   await browser.close();
   await close(server);

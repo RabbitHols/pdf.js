@@ -1,4 +1,7 @@
-import { loadPdfDocument } from "./pdfDocumentLoader.js";
+import {
+  PdfPasswordCancelledError,
+  loadPdfDocument,
+} from "./pdfDocumentLoader.js";
 import { getSafePageWidthScale } from "./viewerActions.js";
 
 const stateEvents = [
@@ -129,11 +132,20 @@ function logPdfDiagnostics(pdfDocument) {
 export async function openViewerDocument({
   linkService,
   onDocumentLoaded,
+  onPasswordRequest,
   pdfViewer,
   source,
 }) {
-  const loadingTask = loadPdfDocument(source);
-  const pdfDocument = await loadingTask.promise;
+  const loadingTask = loadPdfDocument(source, { onPasswordRequest });
+  let pdfDocument = null;
+  try {
+    pdfDocument = await loadingTask.promise;
+  } catch (reason) {
+    if (loadingTask.viewerNextPasswordState?.cancelled) {
+      throw new PdfPasswordCancelledError();
+    }
+    throw reason;
+  }
   logPdfDiagnostics(pdfDocument);
 
   pdfViewer.setDocument(pdfDocument);

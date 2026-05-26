@@ -8,7 +8,10 @@ import {
 import { flushSync } from "react-dom";
 import { buildExportFilename } from "../app/preferences.js";
 import { useTranslation } from "../i18n/index.js";
-import { createViewerEngine } from "../pdf/index.js";
+import {
+  createViewerEngine,
+  isPdfPasswordCancelledError,
+} from "../pdf/index.js";
 import { SelectionTransformOverlay } from "./SelectionTransformOverlay.jsx";
 
 function stripNativePdfTooltips(root) {
@@ -139,6 +142,115 @@ function ExternalLinkWarningDialog({ linkInfo, onClose }) {
   );
 }
 
+function PdfPasswordDialog({ request, onCancel }) {
+  const { t } = useTranslation();
+  const [password, setPassword] = useState("");
+  const [touched, setTouched] = useState(false);
+  const inputRef = useRef(null);
+  const isIncorrect = request?.reason === "incorrect-password";
+  const showEmptyError = touched && !password && !isIncorrect;
+
+  useEffect(() => {
+    setPassword("");
+    setTouched(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [request?.id]);
+
+  useEffect(() => {
+    if (!request) {
+      return undefined;
+    }
+    function closeOnEscape(event) {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onCancel, request]);
+
+  if (!request) {
+    return null;
+  }
+
+  function submitPassword(event) {
+    event.preventDefault();
+    if (!password) {
+      setTouched(true);
+      return;
+    }
+    request.submit(password);
+  }
+
+  return (
+    <div className="pdf-password-backdrop" role="presentation">
+      <form
+        aria-labelledby="pdf-password-title"
+        aria-modal="true"
+        className="pdf-password-dialog"
+        onSubmit={submitPassword}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <span>{t("PDF protetto")}</span>
+            <h3 id="pdf-password-title">{t("Sblocca documento")}</h3>
+          </div>
+          <button aria-label={t("Chiudi")} onClick={onCancel} type="button">
+            <span className="symbol">close</span>
+          </button>
+        </header>
+        <div className="pdf-password-body">
+          <span className="symbol password-symbol">lock</span>
+          <div>
+            <p>
+              {isIncorrect
+                ? t("La password non e corretta. Riprova.")
+                : t("Questo PDF richiede una password per essere aperto.")}
+            </p>
+            <label>
+              <span>{t("Password PDF")}</span>
+              <input
+                aria-invalid={isIncorrect || showEmptyError ? "true" : "false"}
+                aria-label={t("Password PDF")}
+                autoComplete="current-password"
+                disabled={request.submitting}
+                onChange={event => setPassword(event.target.value)}
+                ref={inputRef}
+                type="password"
+                value={password}
+              />
+            </label>
+            {isIncorrect || showEmptyError ? (
+              <p className="pdf-password-error">
+                {isIncorrect
+                  ? t("Password errata")
+                  : t("Inserisci una password.")}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <footer>
+          <button
+            disabled={request.submitting}
+            onClick={onCancel}
+            type="button"
+          >
+            {t("Annulla apertura PDF")}
+          </button>
+          <button
+            className="primary"
+            disabled={request.submitting}
+            type="submit"
+          >
+            {request.submitting ? t("Verifica password...") : t("Sblocca")}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
   {
     documentInfo,
@@ -160,9 +272,12 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
   const surfaceRef = useRef(null);
   const stampSelectionRef = useRef(stampSelection);
   const initialFreeTextStyleRef = useRef(initialFreeTextStyle);
+  const passwordRequestRef = useRef(null);
+  const passwordRequestIdRef = useRef(0);
   const [error, setError] = useState(null);
   const [externalLinkInfo, setExternalLinkInfo] = useState(null);
   const [pageSize, setPageSize] = useState(null);
+  const [passwordRequest, setPasswordRequest] = useState(null);
   const [viewerInteractionState, setViewerInteractionState] = useState(null);
   initialFreeTextStyleRef.current = initialFreeTextStyle;
 
@@ -245,6 +360,8 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
 
   useEffect(() => {
     setExternalLinkInfo(null);
+    passwordRequestRef.current = null;
+    setPasswordRequest(null);
 
     const container = containerRef.current;
     const viewer = viewerRef.current;
@@ -285,6 +402,40 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       });
     }
 
+    function cancelPasswordRequest() {
+      passwordRequestRef.current?.cancel();
+      passwordRequestRef.current = null;
+      setPasswordRequest(null);
+    }
+
+    function onPasswordRequest(request) {
+      if (cancelled) {
+        request.cancel();
+        return;
+      }
+      const id = ++passwordRequestIdRef.current;
+      const nextRequest = {
+        id,
+        reason: request.reason,
+        submitting: false,
+        cancel: request.cancel,
+        submit: password => {
+          setPasswordRequest(current =>
+            current?.id === id ? { ...current, submitting: true } : current
+          );
+          request.submit(password);
+        },
+      };
+      passwordRequestRef.current = nextRequest;
+      setPasswordRequest(nextRequest);
+      onViewerStateChange?.({
+        error: null,
+        loading: true,
+        passwordRequired: true,
+        passwordReason: request.reason,
+      });
+    }
+
     setError(null);
     setPageSize(null);
     setViewerInteractionState(null);
@@ -312,6 +463,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       initialTool,
       onExternalLinkRequest: setExternalLinkInfo,
       onDocumentLoaded,
+      onPasswordRequest,
       onViewerStateChange: state => {
         setPageSize(state.pageSize || null);
         setViewerInteractionState(state.viewerInteractionState || null);
@@ -325,6 +477,8 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
         }
         surface = instance;
         surfaceRef.current = instance;
+        passwordRequestRef.current = null;
+        setPasswordRequest(null);
         if (stampSelectionRef.current) {
           instance.setStampSelection?.(stampSelectionRef.current);
         }
@@ -336,8 +490,19 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       })
       .catch(reason => {
         if (!cancelled) {
+          passwordRequestRef.current = null;
+          setPasswordRequest(null);
+          if (isPdfPasswordCancelledError(reason)) {
+            const message = t("Password richiesta per aprire il PDF.");
+            setError(message);
+            onViewerStateChange?.({
+              error: message,
+              loading: false,
+            });
+            return;
+          }
           console.error("Viewer Next PDF surface failed", reason);
-          const message = "The selected PDF could not be rendered.";
+          const message = t("Il PDF selezionato non puo essere visualizzato.");
           setError(message);
           onViewerStateChange?.({
             error: message,
@@ -348,6 +513,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
 
     return () => {
       cancelled = true;
+      cancelPasswordRequest();
       window.removeEventListener("wheel", onWheel, { capture: true });
       container.removeEventListener("contextmenu", onContextMenu);
       stopObservingTooltips();
@@ -364,6 +530,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     onPdfContextMenu,
     onViewerStateChange,
     readOnly,
+    t,
   ]);
 
   useEffect(() => {
@@ -397,6 +564,14 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       <ExternalLinkWarningDialog
         linkInfo={externalLinkInfo}
         onClose={() => setExternalLinkInfo(null)}
+      />
+      <PdfPasswordDialog
+        onCancel={() => {
+          passwordRequest?.cancel();
+          passwordRequestRef.current = null;
+          setPasswordRequest(null);
+        }}
+        request={passwordRequest}
       />
       <div className="pdf-surface-container" ref={containerRef}>
         <div className="pdfViewer" ref={viewerRef}></div>

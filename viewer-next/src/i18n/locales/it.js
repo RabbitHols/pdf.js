@@ -3,6 +3,7 @@ export const it = {
   "Add image": "Aggiungi immagine",
   "Add text": "Aggiungi testo",
   "Annulla apertura link": "Annulla",
+  "Annulla apertura PDF": "Annulla",
   Bookmarks: "Segnalibri",
   "Caricamento segnalibri...": "Caricamento segnalibri...",
   "Annulla modifica": "Annulla modifica",
@@ -49,6 +50,9 @@ export const it = {
   Identity: "Identita",
   "Include date": "Includi data",
   Indirizzo: "Indirizzo",
+  "Il PDF selezionato non puo essere visualizzato.":
+    "Il PDF selezionato non puo essere visualizzato.",
+  "Inserisci una password.": "Inserisci una password.",
   "Inserite da {{name}}": "Inserite da {{name}}",
   "1 pagina vuota da inserire": "1 pagina vuota da inserire",
   "{{count}} pagine vuote da inserire":
@@ -77,6 +81,11 @@ export const it = {
   "Outline width": "Spessore contorno",
   "Opzioni ricerca": "Opzioni ricerca",
   "Origine pagina {{page}}": "Origine pagina {{page}}",
+  "Password errata": "Password errata",
+  "Password PDF": "Password PDF",
+  "Password richiesta per aprire il PDF.":
+    "Serve una password per aprire questo PDF.",
+  "PDF protetto": "PDF protetto",
   Pink: "Rosa",
   "Preset stamps": "Timbri predefiniti",
   Preview: "Anteprima",
@@ -96,6 +105,12 @@ export const it = {
   "Segnalibri non disponibili.": "Segnalibri non disponibili.",
   "Seleziona testo nel PDF per aggiungere un segnalibro.":
     "Seleziona testo nel PDF per aggiungere un segnalibro.",
+  "La password non e corretta. Riprova.":
+    "La password non e corretta. Riprova.",
+  "Questo PDF richiede una password per essere aperto.":
+    "Questo PDF richiede una password per essere aperto.",
+  Sblocca: "Sblocca",
+  "Sblocca documento": "Sblocca documento",
   "Stamp settings": "Impostazioni timbro",
   "Stroke color": "Colore tratto",
   "Stroke width": "Spessore tratto",
@@ -103,6 +118,7 @@ export const it = {
   "Upload custom stamp": "Carica timbro custom",
   "Upload signature image": "Carica immagine firma",
   "Upload stamp image": "Carica immagine timbro",
+  "Verifica password...": "Verifica password...",
   "Zoom in": "Ingrandisci",
   "Zoom out": "Riduci",
   Yellow: "Giallo",

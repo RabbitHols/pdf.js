@@ -46,6 +46,7 @@ export async function createViewerEngine({
   initialTool = null,
   onExternalLinkRequest = null,
   onDocumentLoaded,
+  onPasswordRequest,
   onViewerStateChange,
 }) {
   const eventBus = createViewerCoreEventBus();
@@ -114,6 +115,7 @@ export async function createViewerEngine({
         const loaded = await openViewerDocument({
           linkService,
           onDocumentLoaded,
+          onPasswordRequest,
           pdfViewer,
           source: nextSource,
         });
@@ -640,6 +642,7 @@ export async function createViewerEngine({
   const loadedDocument = await openViewerDocument({
     linkService,
     onDocumentLoaded,
+    onPasswordRequest,
     pdfViewer,
     source: source ?? bytes,
   });

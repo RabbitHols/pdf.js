@@ -19,6 +19,7 @@ export const es = {
   "Altre opzioni": "Mas opciones",
   Altro: "Mas",
   "Annulla apertura link": "Cancelar",
+  "Annulla apertura PDF": "Cancelar",
   Annulla: "Deshacer",
   "Annulla modifica": "Cancelar edicion",
   Aperto: "Abierto",
@@ -116,6 +117,21 @@ export const es = {
   "Formato immagine": "Formato de imagen",
   "Formatta il testo": "Formatear texto",
   Freccia: "Flecha",
+  "Il PDF selezionato non puo essere visualizzato.":
+    "No se pudo mostrar el PDF seleccionado.",
+  "Inserisci una password.": "Introduce una contrasena.",
+  "La password non e corretta. Riprova.":
+    "La contrasena es incorrecta. Intentalo de nuevo.",
+  "Password errata": "Contrasena incorrecta",
+  "Password PDF": "Contrasena del PDF",
+  "Password richiesta per aprire il PDF.":
+    "Se requiere una contrasena para abrir este PDF.",
+  "PDF protetto": "PDF protegido",
+  "Questo PDF richiede una password per essere aperto.":
+    "Este PDF requiere una contrasena para abrirse.",
+  Sblocca: "Desbloquear",
+  "Sblocca documento": "Desbloquear documento",
+  "Verifica password...": "Comprobando contrasena...",
   Fumetto: "Nube",
   Gestisci: "Gestionar",
   "Gestisci i segnalibri del PDF aperto.":

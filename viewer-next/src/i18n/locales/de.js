@@ -20,6 +20,7 @@ export const de = {
   "Altre opzioni": "Weitere Optionen",
   Altro: "Mehr",
   "Annulla apertura link": "Abbrechen",
+  "Annulla apertura PDF": "Abbrechen",
   Annulla: "Ruckgangig",
   "Annulla modifica": "Bearbeitung abbrechen",
   Aperto: "Geoffnet",
@@ -118,6 +119,21 @@ export const de = {
   "Formato immagine": "Bildformat",
   "Formatta il testo": "Text formatieren",
   Freccia: "Pfeil",
+  "Il PDF selezionato non puo essere visualizzato.":
+    "Das ausgewahlte PDF konnte nicht angezeigt werden.",
+  "Inserisci una password.": "Gib ein Passwort ein.",
+  "La password non e corretta. Riprova.":
+    "Das Passwort ist falsch. Versuche es erneut.",
+  "Password errata": "Falsches Passwort",
+  "Password PDF": "PDF-Passwort",
+  "Password richiesta per aprire il PDF.":
+    "Zum Offnen dieses PDFs ist ein Passwort erforderlich.",
+  "PDF protetto": "Geschutztes PDF",
+  "Questo PDF richiede una password per essere aperto.":
+    "Dieses PDF benotigt ein Passwort zum Offnen.",
+  Sblocca: "Entsperren",
+  "Sblocca documento": "Dokument entsperren",
+  "Verifica password...": "Passwort wird gepruft...",
   Fumetto: "Wolke",
   Gestisci: "Verwalten",
   "Gestisci i segnalibri del PDF aperto.":
