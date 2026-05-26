@@ -125,6 +125,30 @@ function getRuntimeHistoryLabel(type, t) {
   return labels[type] || t("Modifica annotazione");
 }
 
+function getRevisionHistoryLabel(entry, t) {
+  if (!entry?.type) {
+    return entry?.label || t("Documento modificato");
+  }
+  if (entry.type === "delete-page") {
+    const page = entry.payload?.pageNumber;
+    return Number.isFinite(page)
+      ? t("Pagina {{page}} eliminata", { page })
+      : t("Pagina eliminata");
+  }
+  if (entry.type === "page-organizer") {
+    return t("Organizzazione pagine applicata");
+  }
+  if (entry.type === "protect-pdf") {
+    if (entry.payload?.passwordAction === "remove") {
+      return t("Password PDF rimossa");
+    }
+    return entry.payload?.requireOpenPassword
+      ? t("Password PDF applicata")
+      : t("Restrizioni PDF applicate");
+  }
+  return entry.label || t("Documento modificato");
+}
+
 function getHistoryIcon(type) {
   if (type === "document") {
     return "picture_as_pdf";
@@ -193,7 +217,7 @@ function buildLinearHistoryGraph({
       isFuture:
         Boolean(redoRevisionTimestamp) &&
         (entry.timestamp || 0) >= redoRevisionTimestamp,
-      label: entry.label,
+      label: getRevisionHistoryLabel(entry, t),
       timestamp: entry.timestamp || 0,
       track: "revision",
       type: entry.type,
