@@ -163,7 +163,7 @@ export default defineConfig({
           repoRoot,
           usePdfjsSource
             ? "viewer-next/src/pdf/viewerCoreCompat.js"
-            : "build/components/pdf_viewer.mjs"
+            : "viewer-next/src/pdf/viewerCoreBuild.js"
         ),
       },
       {
