@@ -15,7 +15,7 @@ export const supportedThemes = [
   { code: "dark", labelKey: "Scuro" },
 ];
 
-const fallbackTheme = "system";
+const fallbackTheme = "light";
 const supportedThemeCodes = new Set(supportedThemes.map(theme => theme.code));
 const ThemeContext = createContext(null);
 
