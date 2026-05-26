@@ -21,6 +21,7 @@ export const en = {
   "Aggiungi testo": "Add text",
   "Altre opzioni": "More options",
   Altro: "More",
+  "Annulla apertura link": "Cancel",
   Annulla: "Undo",
   Aperto: "Open",
   "Apri PDF": "Open PDF",
@@ -40,6 +41,8 @@ export const en = {
   Chiaro: "Light",
   "Passa al tema chiaro": "Switch to light theme",
   "Passa al tema scuro": "Switch to dark theme",
+  "Questo link aprira un sito esterno in una nuova scheda.":
+    "This link will open an external site in a new tab.",
   "Chiudi {{name}}": "Close {{name}}",
   "Chiudi {{title}}": "Close {{title}}",
   Chiudi: "Close",
@@ -54,6 +57,7 @@ export const en = {
   "Compila e firma": "Fill and sign",
   "Compila e firma tu stesso/a": "Fill and sign yourself",
   "Comprimi un PDF": "Compress a PDF",
+  "Continua al sito": "Continue to site",
   Computer: "Computer",
   "Con stella": "Starred",
   "Condivisi da altri": "Shared by others",
@@ -100,12 +104,14 @@ export const en = {
   "Intestazione e piè di pagina": "Header and footer",
   "Invia un documento per richiedere una firma.":
     "Send a document to request a signature.",
+  Indirizzo: "Address",
   "I tuoi documenti": "Your documents",
   "Lavora con un PDF": "Work with a PDF",
   Lingua: "Language",
   "Lingua interfaccia": "Interface language",
   Linea: "Line",
   "Linee connesse": "Connected lines",
+  "Link esterno": "External link",
   Link: "Link",
   "Maiuscole/minuscole": "Match case",
   Modifica: "Edit",
@@ -170,8 +176,10 @@ export const en = {
   "Sposta dopo": "Move after",
   "Sposta prima": "Move before",
   Scuro: "Dark",
+  Sito: "Site",
   Stampa: "Print",
   "Stampa preparata": "Print prepared",
+  "Stai lasciando il PDF": "You are leaving the PDF",
   Stato: "Status",
   "Strumenti consigliati": "Recommended tools",
   Sistema: "System",
@@ -621,6 +629,8 @@ export const en = {
   Sconosciuto: "Unknown",
   "Viewer Next ha rilevato una firma digitale, ma non puo verificarne l'identita.":
     "Viewer Next detected a digital signature, but cannot verify the signer's identity.",
+  "Viewer Next non puo aprire questo tipo di link.":
+    "Viewer Next cannot open this type of link.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next does not perform cryptographic validation or certificate-chain verification for this signature.",
   "pdf.js non segnala firme digitali in questo documento.":

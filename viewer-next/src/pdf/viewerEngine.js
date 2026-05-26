@@ -44,6 +44,7 @@ export async function createViewerEngine({
   getFilename = null,
   initialFreeTextStyle = null,
   initialTool = null,
+  onExternalLinkRequest = null,
   onDocumentLoaded,
   onViewerStateChange,
 }) {
@@ -63,6 +64,7 @@ export async function createViewerEngine({
     commentManager: commentBridge.commentManager,
     container,
     eventBus,
+    onExternalLinkRequest,
     signatureManager: null,
     viewer,
   });

@@ -164,7 +164,8 @@
 }
 
 .replace-pages-backdrop,
-.organizer-action-backdrop {
+.organizer-action-backdrop,
+.external-link-warning-backdrop {
   position: fixed;
   z-index: 50;
   inset: var(--topbar) 0 0;
@@ -174,7 +175,8 @@
 }
 
 .replace-pages-dialog,
-.organizer-action-dialog {
+.organizer-action-dialog,
+.external-link-warning-dialog {
   display: grid;
   width: min(560px, calc(100vw - 48px));
   max-height: calc(100vh - 96px);
@@ -188,7 +190,9 @@
 .replace-pages-dialog header,
 .replace-pages-dialog footer,
 .organizer-action-dialog header,
-.organizer-action-dialog footer {
+.organizer-action-dialog footer,
+.external-link-warning-dialog header,
+.external-link-warning-dialog footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -197,12 +201,14 @@
 }
 
 .replace-pages-dialog header,
-.organizer-action-dialog header {
+.organizer-action-dialog header,
+.external-link-warning-dialog header {
   border-bottom: 1px solid var(--line-soft);
 }
 
-.replace-pages-dialog header span,
-.organizer-action-dialog header span {
+.replace-pages-dialog header > div > span,
+.organizer-action-dialog header > div > span,
+.external-link-warning-dialog header > div > span {
   display: block;
   color: var(--muted);
   font-size: 11px;
@@ -212,14 +218,16 @@
 }
 
 .replace-pages-dialog h3,
-.organizer-action-dialog h3 {
+.organizer-action-dialog h3,
+.external-link-warning-dialog h3 {
   margin: 3px 0 0;
   color: var(--text-strong);
   font-size: 18px;
 }
 
 .replace-pages-dialog header button,
-.organizer-action-dialog header button {
+.organizer-action-dialog header button,
+.external-link-warning-dialog header button {
   display: grid;
   width: 34px;
   height: 34px;
@@ -228,8 +236,71 @@
 }
 
 .replace-pages-dialog header button:hover,
-.organizer-action-dialog header button:hover {
+.organizer-action-dialog header button:hover,
+.external-link-warning-dialog header button:hover {
   background: var(--hover);
+}
+
+.external-link-warning-body {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+}
+
+.external-link-warning-body .warning-symbol {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--warning-line);
+  border-radius: 8px;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.external-link-warning-body p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.external-link-warning-body dl {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.external-link-warning-body dl > div {
+  display: grid;
+  gap: 4px;
+}
+
+.external-link-warning-body dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.external-link-warning-body dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--field);
+  padding: 9px 10px;
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.external-link-warning-message {
+  margin-top: 12px !important;
+  color: var(--danger) !important;
 }
 
 .replace-pages-section {
@@ -369,23 +440,32 @@
 }
 
 .replace-pages-dialog footer,
-.organizer-action-dialog footer {
+.organizer-action-dialog footer,
+.external-link-warning-dialog footer {
   justify-content: flex-end;
   border-top: 1px solid var(--line-soft);
   margin-top: 16px;
 }
 
 .replace-pages-dialog footer button,
-.organizer-action-dialog footer button {
+.organizer-action-dialog footer button,
+.external-link-warning-dialog footer button,
+.external-link-warning-dialog footer a {
+  display: inline-flex;
   min-height: 34px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 16px;
+  color: var(--text);
   font-weight: 800;
+  text-decoration: none;
 }
 
 .replace-pages-dialog footer .primary,
-.organizer-action-dialog footer .primary {
+.organizer-action-dialog footer .primary,
+.external-link-warning-dialog footer .primary {
   border-color: var(--blue);
   background: var(--blue);
   color: #fff;

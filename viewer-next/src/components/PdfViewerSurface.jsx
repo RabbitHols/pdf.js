@@ -52,6 +52,93 @@ function observeNativePdfTooltips(root) {
   return () => observer.disconnect();
 }
 
+function ExternalLinkWarningDialog({ linkInfo, onClose }) {
+  const { t } = useTranslation();
+  useEffect(() => {
+    if (!linkInfo) {
+      return undefined;
+    }
+    function closeOnEscape(event) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [linkInfo, onClose]);
+
+  if (!linkInfo) {
+    return null;
+  }
+
+  return (
+    <div
+      className="external-link-warning-backdrop"
+      onClick={onClose}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="external-link-warning-title"
+        aria-modal="true"
+        className="external-link-warning-dialog"
+        onClick={event => event.stopPropagation()}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <span>{t("Link esterno")}</span>
+            <h3 id="external-link-warning-title">
+              {t("Stai lasciando il PDF")}
+            </h3>
+          </div>
+          <button aria-label={t("Chiudi")} onClick={onClose} type="button">
+            <span className="symbol">close</span>
+          </button>
+        </header>
+        <div className="external-link-warning-body">
+          <span className="symbol warning-symbol">open_in_new</span>
+          <div>
+            <p>
+              {t("Questo link aprira un sito esterno in una nuova scheda.")}
+            </p>
+            <dl>
+              <div>
+                <dt>{t("Sito")}</dt>
+                <dd>{linkInfo.site}</dd>
+              </div>
+              <div>
+                <dt>{t("Indirizzo")}</dt>
+                <dd>{linkInfo.displayUrl}</dd>
+              </div>
+            </dl>
+            {!linkInfo.isAllowed ? (
+              <p className="external-link-warning-message">
+                {t("Viewer Next non puo aprire questo tipo di link.")}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <footer>
+          <button autoFocus onClick={onClose} type="button">
+            {t("Annulla apertura link")}
+          </button>
+          {linkInfo.isAllowed ? (
+            <a
+              className="primary"
+              href={linkInfo.url}
+              onClick={onClose}
+              rel="noopener noreferrer nofollow"
+              target="_blank"
+            >
+              {t("Continua al sito")}
+            </a>
+          ) : null}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
   {
     documentInfo,
@@ -73,6 +160,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
   const stampSelectionRef = useRef(stampSelection);
   const initialFreeTextStyleRef = useRef(initialFreeTextStyle);
   const [error, setError] = useState(null);
+  const [externalLinkInfo, setExternalLinkInfo] = useState(null);
   const [pageSize, setPageSize] = useState(null);
   const [viewerInteractionState, setViewerInteractionState] = useState(null);
   initialFreeTextStyleRef.current = initialFreeTextStyle;
@@ -155,6 +243,8 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
   );
 
   useEffect(() => {
+    setExternalLinkInfo(null);
+
     const container = containerRef.current;
     const viewer = viewerRef.current;
     if (!container || !viewer || !documentInfo?.data) {
@@ -216,6 +306,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       getFilename: () => buildExportFilename(documentInfo.name),
       initialFreeTextStyle: initialFreeTextStyleRef.current,
       initialTool,
+      onExternalLinkRequest: setExternalLinkInfo,
       onDocumentLoaded,
       onViewerStateChange: state => {
         setPageSize(state.pageSize || null);
@@ -298,6 +389,10 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       }
     >
       {error ? <div className="surface-error">{error}</div> : null}
+      <ExternalLinkWarningDialog
+        linkInfo={externalLinkInfo}
+        onClose={() => setExternalLinkInfo(null)}
+      />
       <div className="pdf-surface-container" ref={containerRef}>
         <div className="pdfViewer" ref={viewerRef}></div>
       </div>

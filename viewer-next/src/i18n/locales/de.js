@@ -19,6 +19,7 @@ export const de = {
   "Aggiungi testo": "Text hinzufugen",
   "Altre opzioni": "Weitere Optionen",
   Altro: "Mehr",
+  "Annulla apertura link": "Abbrechen",
   Annulla: "Ruckgangig",
   "Annulla modifica": "Bearbeitung abbrechen",
   Aperto: "Geoffnet",
@@ -45,6 +46,7 @@ export const de = {
   "Cerca nel PDF": "PDF durchsuchen",
   Cercando: "Suche",
   Chiaro: "Hell",
+  "Continua al sito": "Weiter zur Website",
   "Chiudi Documenti": "Dokumente schliessen",
   "Chiudi {{name}}": "{{name}} schliessen",
   "Chiudi {{title}}": "{{title}} schliessen",
@@ -539,6 +541,7 @@ export const de = {
   "Il PDF non consente la stampa.": "Das PDF erlaubt kein Drucken.",
   "Il PDF non consente la copia del testo.":
     "Das PDF erlaubt kein Kopieren von Text.",
+  Indirizzo: "Adresse",
   "Le modifiche possono invalidare la firma digitale.":
     "Anderungen konnen die digitale Signatur ungultig machen.",
   "Le modifiche possono invalidare la firma digitale. Premi Salva di nuovo per continuare.":
@@ -549,6 +552,7 @@ export const de = {
   "Lettura firme e autorizzazioni...":
     "Signaturen und Berechtigungen werden gelesen...",
   Limitato: "Eingeschrankt",
+  "Link esterno": "Externer Link",
   "Modifica contenuto": "Inhalt bearbeiten",
   "Modifiche consentite: {{changes}}": "Erlaubte Anderungen: {{changes}}",
   "Modifiche dopo la firma rilevate":
@@ -563,9 +567,15 @@ export const de = {
   "Non verificabile in Viewer Next": "In Viewer Next nicht uberprufbar",
   "Ora firma": "Signaturzeit",
   "Organizzazione pagine": "Seiten organisieren",
+  "Questo link aprira un sito esterno in una nuova scheda.":
+    "Dieser Link offnet eine externe Website in einem neuen Tab.",
   Sconosciuto: "Unbekannt",
+  Sito: "Website",
+  "Stai lasciando il PDF": "Du verlaesst das PDF",
   "Viewer Next ha rilevato una firma digitale, ma non puo verificarne l'identita.":
     "Viewer Next hat eine digitale Signatur erkannt, kann die Identitat des Unterzeichners aber nicht uberprufen.",
+  "Viewer Next non puo aprire questo tipo di link.":
+    "Viewer Next kann diesen Linktyp nicht offnen.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next fuhrt fur diese Signatur keine kryptografische Validierung und keine Zertifikatskettenprufung aus.",
   "pdf.js non segnala firme digitali in questo documento.":

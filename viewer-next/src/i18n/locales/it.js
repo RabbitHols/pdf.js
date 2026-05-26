@@ -2,6 +2,7 @@ export const it = {
   "{{count}} file aperti": "{{count}} file aperti",
   "Add image": "Aggiungi immagine",
   "Add text": "Aggiungi testo",
+  "Annulla apertura link": "Annulla",
   Bookmarks: "Segnalibri",
   "Caricamento segnalibri...": "Caricamento segnalibri...",
   "Annulla modifica": "Annulla modifica",
@@ -28,6 +29,7 @@ export const it = {
   "Custom fill color": "Colore riempimento custom",
   "Custom outline color": "Colore contorno custom",
   "Custom stroke color": "Colore tratto custom",
+  "Continua al sito": "Continua al sito",
   Date: "Data",
   "Draw style": "Stile disegno",
   "Fill color": "Colore riempimento",
@@ -36,12 +38,14 @@ export const it = {
   "Light green": "Verde chiaro",
   "Light purple": "Viola chiaro",
   "Light red": "Rosso chiaro",
+  "Link esterno": "Link esterno",
   "Gestisci i segnalibri del PDF aperto.":
     "Gestisci i segnalibri del PDF aperto.",
   Highlight: "Evidenzia",
   "Highlight color": "Colore evidenziatore",
   Identity: "Identita",
   "Include date": "Includi data",
+  Indirizzo: "Indirizzo",
   "Inserite da {{name}}": "Inserite da {{name}}",
   "1 pagina vuota da inserire": "1 pagina vuota da inserire",
   "{{count}} pagine vuote da inserire":
@@ -243,9 +247,15 @@ export const it = {
   "Non verificabile in Viewer Next": "Non verificabile in Viewer Next",
   "Ora firma": "Ora firma",
   "Organizzazione pagine": "Organizzazione pagine",
+  "Questo link aprira un sito esterno in una nuova scheda.":
+    "Questo link aprira un sito esterno in una nuova scheda.",
   Sconosciuto: "Sconosciuto",
+  Sito: "Sito",
+  "Stai lasciando il PDF": "Stai lasciando il PDF",
   "Viewer Next ha rilevato una firma digitale, ma non puo verificarne l'identita.":
     "Viewer Next ha rilevato una firma digitale, ma non puo verificarne l'identita.",
+  "Viewer Next non puo aprire questo tipo di link.":
+    "Viewer Next non puo aprire questo tipo di link.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.",
   "pdf.js non segnala firme digitali in questo documento.":
