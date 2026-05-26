@@ -493,24 +493,38 @@ export function createAnnotationEditorBridge({
     }
   }
 
+  function getAnnotationEditorLayersAtPoint(clientX, clientY) {
+    const ownerDocument = viewer.ownerDocument || document;
+    const hitElements = ownerDocument.elementsFromPoint(clientX, clientY);
+    const layers = new Set(
+      hitElements
+        .map(element => element.closest?.(".annotationEditorLayer"))
+        .filter(Boolean)
+    );
+    for (const element of hitElements) {
+      const page = element.closest?.(".page");
+      const layer = page?.querySelector?.(".annotationEditorLayer");
+      if (layer) {
+        layers.add(layer);
+      }
+    }
+    return layers;
+  }
+
   function selectEditorAtPoint({ clientX, clientY, pointerEvent = null }) {
     const uiManager = pdfViewer._layerProperties?.annotationEditorUIManager;
     if (!uiManager) {
       return false;
     }
-    const layers = new Set(
-      document
-        .elementsFromPoint(clientX, clientY)
-        .map(element => element.closest?.(".annotationEditorLayer"))
-        .filter(Boolean)
-    );
+    const ownerDocument = viewer.ownerDocument || document;
+    const layers = getAnnotationEditorLayersAtPoint(clientX, clientY);
     if (!layers.size) {
       return false;
     }
 
     for (const layer of layers) {
       layer.classList.add("getElements");
-      const elements = document.elementsFromPoint(clientX, clientY);
+      const elements = ownerDocument.elementsFromPoint(clientX, clientY);
       layer.classList.remove("getElements");
       const editorElement = elements.find(element =>
         element.id?.startsWith("pdfjs_internal_editor_")

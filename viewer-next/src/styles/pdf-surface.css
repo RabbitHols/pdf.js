@@ -44,6 +44,18 @@
   cursor: copy;
 }
 
+.pdf-surface-container
+  .annotationEditorLayer.disabled.nonEditing
+  :is(
+    .freeTextEditor,
+    .highlightEditor,
+    .inkEditor,
+    .signatureEditor,
+    .stampEditor
+  ) {
+  pointer-events: auto;
+}
+
 .pdf-surface-container .annotationEditorLayer .editToolbar,
 .pdf-surface-container .textLayer .editToolbar,
 .pdf-surface-container .annotationCommentButton,

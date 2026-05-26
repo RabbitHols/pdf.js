@@ -703,11 +703,12 @@ export async function createViewerEngine({
     });
   }
 
-  function onDrawModePointerDown(event) {
-    if (
-      event.button !== 0 ||
-      annotationEditorBridge.getActiveTool() !== "ink"
-    ) {
+  function onEditorPointerDown(event) {
+    if (event.button !== 0) {
+      return;
+    }
+    const activeTool = annotationEditorBridge.getActiveTool();
+    if (activeTool !== "select" && activeTool !== "ink") {
       return;
     }
     if (
@@ -723,7 +724,7 @@ export async function createViewerEngine({
     }
   }
 
-  viewer.addEventListener("pointerdown", onDrawModePointerDown, true);
+  viewer.addEventListener("pointerdown", onEditorPointerDown, true);
 
   function readInteractionStateAtPoint({ clientX, clientY } = {}) {
     if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
@@ -867,7 +868,7 @@ export async function createViewerEngine({
       if (selectionStateTimer) {
         clearTimeout(selectionStateTimer);
       }
-      viewer.removeEventListener("pointerdown", onDrawModePointerDown, true);
+      viewer.removeEventListener("pointerdown", onEditorPointerDown, true);
       eventBus.off("editingstateschanged", onEditingStatesChanged);
       eventBus.off("editinghistorychanged", onEditingHistoryChanged);
       findStateTracker.destroy();
