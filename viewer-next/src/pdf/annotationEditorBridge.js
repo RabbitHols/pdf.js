@@ -139,8 +139,43 @@ export function createAnnotationEditorBridge({
     return pdfViewer._layerProperties?.annotationEditorUIManager || null;
   }
 
+  function normalizeEditorList(editors) {
+    if (!editors) {
+      return [];
+    }
+    if (Array.isArray(editors)) {
+      return editors.filter(Boolean);
+    }
+    if (typeof editors[Symbol.iterator] === "function") {
+      return Array.from(editors).filter(Boolean);
+    }
+    return [];
+  }
+
   function getSelectedEditors() {
-    return getAnnotationEditorUiManager()?.getSelectedEditors?.() || [];
+    const uiManager = getAnnotationEditorUiManager();
+    const selectedEditors = normalizeEditorList(
+      uiManager?.getSelectedEditors?.()
+    );
+    const firstSelectedEditor = uiManager?.firstSelectedEditor;
+    if (
+      firstSelectedEditor &&
+      !selectedEditors.includes(firstSelectedEditor)
+    ) {
+      selectedEditors.push(firstSelectedEditor);
+    }
+
+    const selectedEditorElements =
+      pdfViewer.container?.querySelectorAll?.(
+        ".annotationEditorLayer .selectedEditor"
+      ) || [];
+    for (const element of selectedEditorElements) {
+      const editor = uiManager?.getEditor?.(element.id);
+      if (editor && !selectedEditors.includes(editor)) {
+        selectedEditors.push(editor);
+      }
+    }
+    return selectedEditors;
   }
 
   function getEditorTypeName(editor) {
@@ -172,8 +207,7 @@ export function createAnnotationEditorBridge({
   }
 
   function getSelectionState({ container } = {}) {
-    const uiManager = getAnnotationEditorUiManager();
-    const selectedEditors = uiManager?.getSelectedEditors?.() || [];
+    const selectedEditors = getSelectedEditors();
     const selectedEditorIds = [];
     const selectedEditorTypes = [];
     const selectedEditorDetails = [];
