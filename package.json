@@ -4,6 +4,7 @@
   "scripts": {
     "viewer-next:dev": "vite --config viewer-next/vite.config.mjs",
     "viewer-next:build": "gulp generic components && vite build --config viewer-next/vite.config.mjs",
+    "viewer-next:tauri:build": "cd viewer-next && tauri build",
     "viewer-next:smoke": "node viewer-next/scripts/smoke.mjs",
     "build:viewer-next": "npm run viewer-next:build"
   },
@@ -17,6 +18,7 @@
     "@metalsmith/layouts": "^3.0.0",
     "@metalsmith/markdown": "^1.10.0",
     "@napi-rs/canvas": "^1.0.0",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^25.9.1",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
