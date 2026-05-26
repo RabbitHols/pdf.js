@@ -335,8 +335,8 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
         });
       })
       .catch(reason => {
-        console.error("Viewer Next PDF surface failed", reason);
         if (!cancelled) {
+          console.error("Viewer Next PDF surface failed", reason);
           const message = "The selected PDF could not be rendered.";
           setError(message);
           onViewerStateChange?.({

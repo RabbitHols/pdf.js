@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { access, cp, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,12 @@ const isTauriBuild = Boolean(
     tauriDevHost
 );
 const viewerNextOutDir = path.resolve(repoRoot, "build/generic/viewer-next");
+const pwaPublicAssets = [
+  "./manifest.webmanifest",
+  "./pwa/icon-192.png",
+  "./pwa/icon-512.png",
+  "./pwa/icon-maskable-512.png",
+];
 const tauriBuildOptions = isTauriBuild
   ? {
       minify: process.env.TAURI_ENV_DEBUG ? false : "oxc",
@@ -118,6 +125,144 @@ function copyPdfjsRuntimeAssets() {
   };
 }
 
+function viewerNextPwaServiceWorker() {
+  return {
+    name: "viewer-next-pwa-service-worker",
+    generateBundle(_options, bundle) {
+      const precacheEntries = new Set(["./index.html"]);
+      for (const asset of pwaPublicAssets) {
+        precacheEntries.add(asset);
+      }
+
+      for (const output of Object.values(bundle)) {
+        if (output.type !== "asset" && output.type !== "chunk") {
+          continue;
+        }
+        if (output.fileName === "service-worker.js") {
+          continue;
+        }
+        if (/\.pdf$/i.test(output.fileName)) {
+          continue;
+        }
+        precacheEntries.add(`./${output.fileName}`);
+      }
+
+      this.emitFile({
+        fileName: "service-worker.js",
+        source: createServiceWorkerSource([...precacheEntries].sort()),
+        type: "asset",
+      });
+    },
+  };
+}
+
+function createServiceWorkerSource(precacheEntries) {
+  const cacheVersion = createHash("sha256")
+    .update(JSON.stringify(precacheEntries))
+    .digest("hex")
+    .slice(0, 12);
+
+  return `const CACHE_VERSION = ${JSON.stringify(
+    `viewer-next-${cacheVersion}`
+  )};
+const PRECACHE_URLS = ${JSON.stringify(precacheEntries, null, 2)};
+const SHELL_URL = new URL("./index.html", self.registration.scope).href;
+const STATIC_DESTINATIONS = new Set([
+  "font",
+  "image",
+  "manifest",
+  "script",
+  "style",
+  "worker",
+]);
+const STATIC_EXTENSIONS = /\\.(?:bcmap|cff|css|gif|ico|js|json|mjs|otf|png|svg|ttf|wasm|webmanifest)$/i;
+
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then(cache =>
+      cache.addAll(
+        PRECACHE_URLS.map(url =>
+          new Request(new URL(url, self.registration.scope), {
+            cache: "reload",
+          })
+        )
+      )
+    )
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key.startsWith("viewer-next-") && key !== CACHE_VERSION)
+            .map(key => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", event => {
+  const { request } = event;
+  if (request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || shouldBypassCache(request, url)) {
+    return;
+  }
+
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request).catch(() => caches.match(SHELL_URL)));
+    return;
+  }
+
+  if (isStaticAssetRequest(request, url)) {
+    event.respondWith(cacheFirst(request));
+  }
+});
+
+function shouldBypassCache(request, url) {
+  if (/\\.pdf$/i.test(url.pathname)) {
+    return true;
+  }
+  const accept = request.headers.get("accept") || "";
+  return accept.includes("application/pdf");
+}
+
+function isStaticAssetRequest(request, url) {
+  return (
+    STATIC_DESTINATIONS.has(request.destination) ||
+    STATIC_EXTENSIONS.test(url.pathname)
+  );
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(request);
+  if (response && response.ok && !isPdfResponse(response)) {
+    const cache = await caches.open(CACHE_VERSION);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
+
+function isPdfResponse(response) {
+  return /application\\/pdf/i.test(response.headers.get("content-type") || "");
+}
+`;
+}
+
 async function existingSourcePaths(sources) {
   return Promise.all(
     sources.map(candidates => firstExistingPath(candidates))
@@ -142,7 +287,7 @@ export default defineConfig({
   base: "./",
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_ENV_"],
-  plugins: [react(), copyPdfjsRuntimeAssets()],
+  plugins: [react(), copyPdfjsRuntimeAssets(), viewerNextPwaServiceWorker()],
   optimizeDeps: {
     include: usePdfjsSource
       ? ["@rewirepdf/pdfjs", "@rewirepdf/pdfjs/viewer-core"]

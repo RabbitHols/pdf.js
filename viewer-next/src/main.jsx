@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
 import { I18nProvider } from "./i18n/index.js";
+import { registerViewerNextServiceWorker } from "./pwa/registerServiceWorker.js";
 import { ThemeProvider } from "./theme/index.js";
 import "./styles.css";
 
@@ -14,3 +15,5 @@ createRoot(document.getElementById("root")).render(
     </ThemeProvider>
   </React.StrictMode>
 );
+
+registerViewerNextServiceWorker();

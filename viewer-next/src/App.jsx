@@ -34,7 +34,10 @@ import { usePdfTabs } from "./hooks/usePdfTabs.js";
 import { usePdfViewerActions } from "./hooks/usePdfViewerActions.js";
 import { useTranslation } from "./i18n/index.js";
 import { createDefaultViewerInteractionState } from "./pdf/viewerInteractionState.js";
-import { getStoredPdfTabAsync } from "./pdf/pdfStorage.js";
+import {
+  getActivePdfTabId,
+  getStoredPdfTabAsync,
+} from "./pdf/pdfStorage.js";
 import { useTheme } from "./theme/index.js";
 import { EditView, SignView } from "./views/DocumentEditorView.jsx";
 import demoPdfUrl from "../../test/pdfs/tracemonkey.pdf?url";
@@ -604,11 +607,17 @@ export function App() {
     demoPdfLoadStartedRef.current = true;
     async function openDemoPdf() {
       try {
+        if (documentInfoRef.current || getActivePdfTabId()) {
+          return;
+        }
         const response = await fetch(demoPdfUrl);
         if (!response.ok) {
           throw new Error(`viewer-next-demo-pdf-${response.status}`);
         }
         const blob = await response.blob();
+        if (documentInfoRef.current || getActivePdfTabId()) {
+          return;
+        }
         await openPdfFile(
           new File([blob], "tracemonkey.pdf", {
             type: "application/pdf",
