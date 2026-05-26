@@ -79,6 +79,8 @@ class TextLayer {
 
   #styleCache = Object.create(null);
 
+  #textStyles = Object.create(null);
+
   #textContentItemsStr = [];
 
   #textContentSource = null;
@@ -86,6 +88,8 @@ class TextLayer {
   #textDivs = [];
 
   #textDivProperties = new WeakMap();
+
+  #textEditSourceByDiv = new WeakMap();
 
   #transform = null;
 
@@ -200,6 +204,7 @@ class TextLayer {
         }
         this.#lang ??= value.lang;
         Object.assign(this.#styleCache, value.styles);
+        Object.assign(this.#textStyles, value.styles);
         this.#processItems(value.items);
         pump();
       }, this.#capability.reject);
@@ -273,6 +278,19 @@ class TextLayer {
    */
   get textContentItemsStr() {
     return this.#textContentItemsStr;
+  }
+
+  /**
+   * Get the experimental native-edit source reference for a text layer span.
+   * @param {HTMLElement} textDiv
+   * @returns {Object | null}
+   */
+  getTextEditSource(textDiv) {
+    return this.#textEditSourceByDiv.get(textDiv) || null;
+  }
+
+  get textStyles() {
+    return this.#textStyles;
   }
 
   #processItems(items) {
@@ -380,6 +398,9 @@ class TextLayer {
       textDiv.dataset.fontName =
         style.fontSubstitutionLoadedName || geom.fontName;
     }
+    if (geom.textEditSource) {
+      this.#textEditSourceByDiv.set(textDiv, geom.textEditSource);
+    }
     if (angle !== 0) {
       textDivProperties.angle = angle * (180 / Math.PI);
     }
@@ -473,8 +494,7 @@ class TextLayer {
       // OffscreenCanvas.
       const canvas = document.createElement("canvas");
       canvas.style.cssText =
-        "position:absolute;top:0;left:0;width:0;height:0;display:none;" +
-        "letter-spacing:normal;word-spacing:normal";
+        "position:absolute;top:0;left:0;width:0;height:0;display:none";
       canvas.lang = lang;
       document.body.append(canvas);
       ctx = canvas.getContext("2d", {

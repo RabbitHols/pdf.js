@@ -34,6 +34,16 @@ import { AnnotationLayerBuilder } from "./annotation_layer_builder.js";
 import { DownloadManager } from "./download_manager.js";
 import { EventBus } from "./event_utils.js";
 import { GenericL10n } from "./genericl10n.js";
+import {
+  NativeTextEditController,
+} from "./native_text_edit_controller.js";
+import {
+  NativeTextEditService,
+} from "./native_text_edit_service.js";
+import {
+  setNativeTextEditModeForApplication,
+  syncNativeTextEditModePageForApplication,
+} from "./native_text_edit_app_controller.js";
 import { PagesMapper } from "../src/display/pages_mapper.js";
 import { PDFHistory } from "./pdf_history.js";
 import { PDFPageView } from "./pdf_page_view.js";
@@ -61,38 +71,11 @@ class NativeControllerStub {
   disable() {}
 }
 
-class NativeTextEditServiceStub {
-  hasCommittedBytes() {
-    return false;
-  }
-
-  getCommittedBytes() {
-    return null;
-  }
-
-  clear() {}
-
-  disableVisualEditing() {}
-}
-
-function setNativeTextEditModeForApplication(app, enabled) {
-  app._nativeTextEditPageNumber = enabled
-    ? app.pdfViewer?.currentPageNumber || null
-    : null;
-  app.updateNativeTextEditButton?.();
-}
-
 function setNativeRedactModeForApplication(app, enabled) {
   app._nativeRedactPageNumber = enabled
     ? app.pdfViewer?.currentPageNumber || null
     : null;
   app.updateNativeRedactButton?.();
-}
-
-function syncNativeTextEditModePageForApplication(app, pageNumber) {
-  if (app._nativeTextEditPageNumber !== null) {
-    app._nativeTextEditPageNumber = pageNumber;
-  }
 }
 
 function syncNativeRedactModePageForApplication(app, pageNumber) {
@@ -138,8 +121,8 @@ export {
   GenericL10n,
   LinkTarget,
   NativeControllerStub as NativeRedactController,
-  NativeControllerStub as NativeTextEditController,
-  NativeTextEditServiceStub as NativeTextEditService,
+  NativeTextEditController,
+  NativeTextEditService,
   normalize,
   normalizeWheelEventDirection,
   parseQueryString,

@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+import * as textEditPlanner from "./text_edit_planner.js";
 import {
   AbortException,
   assert,
@@ -30,6 +31,18 @@ import {
   Util,
   warn,
 } from "../shared/util.js";
+import {
+  buildTextEditCandidate,
+  buildTextEditCandidateGroup,
+  isWritableContentStreamStrategy,
+  PDF_TEXT_EDIT_CANDIDATE_GROUP_KIND,
+  PDF_TEXT_EDIT_CANDIDATE_KIND,
+} from "./text_edit_candidate_builder.js";
+import {
+  buildTextOperatorSource,
+  collectContentStreamOperations,
+  tokenizeContentStream,
+} from "./content_stream_tokenizer.js";
 import { CheckedOperatorList, OperatorList } from "./operator_list.js";
 import { CMapFactory, IdentityCMap } from "./cmap.js";
 import { Cmd, Dict, EOF, isName, Name, Ref, RefSet } from "./primitives.js";
@@ -42,6 +55,12 @@ import {
   FontFlags,
   normalizeFontName,
 } from "./fonts_utils.js";
+import {
+  createXObjectFormContainerDescriptor,
+  getPdfEditContainerPathTypeCount,
+  PdfEditXObjectFormReuseTracker,
+  serializePdfEditContainerDescriptor,
+} from "./text_edit_container_graph.js";
 import { ErrorFont, Font } from "./fonts.js";
 import {
   fetchBinaryData,
@@ -85,10 +104,12 @@ import { ColorSpaceUtils } from "./colorspace_utils.js";
 import { getFontSubstitution } from "./font_substitutions.js";
 import { getGlyphsUnicode } from "./glyphlist.js";
 import { getMetrics } from "./metrics.js";
+import { getSourceTextFromTextEditSource } from "../shared/text_edit_source.js";
 import { getUnicodeForGlyph } from "./unicode.js";
 import { MurmurHash3_64 } from "../shared/murmurhash3.js";
-import { parseMarkedContentProps } from "./evaluator_utils.js";
 import { PDFImage } from "./image.js";
+import { rewriteRedactionContentStream } from "./redaction_rewriter.js";
+import { rewriteTextSourceEdit } from "./text_edit_rewriter.js";
 import { Stream } from "./stream.js";
 import { stringToPDFString } from "./string_utils.js";
 
@@ -111,6 +132,9 @@ const DefaultPartialEvaluatorOptions = Object.freeze({
   hasGPU: false,
 });
 
+const TEXT_ITEM_CROSSES_NON_CONTIGUOUS_SOURCE_OPERATORS =
+  "text-item-crosses-non-contiguous-source-operators";
+
 const PatternType = {
   TILING: 1,
   SHADING: 2,
@@ -128,6 +152,81 @@ const PatternType = {
 const TEXT_CHUNK_BATCH_SIZE = 10;
 
 const deferred = Promise.resolve();
+
+function getXObjectResourceRawValue(xobjs, name) {
+  if (typeof xobjs?.getRaw === "function") {
+    return xobjs.getRaw(name);
+  }
+  if (typeof xobjs?.get === "function") {
+    return xobjs.get(name);
+  }
+  return xobjs?.[name];
+}
+
+function getFormXObjectStream(rawXObject, xref) {
+  let xObject = rawXObject;
+  if (xObject instanceof Ref) {
+    xObject = xref.fetch(xObject);
+  }
+  if (!(xObject instanceof BaseStream)) {
+    return null;
+  }
+  const subtype = xObject.dict?.get("Subtype");
+  return subtype instanceof Name && subtype.name === "Form" ? xObject : null;
+}
+
+function registerTextEditXObjectFormInvocations({
+  tracker,
+  stream,
+  resources,
+  xref,
+}) {
+  if (!tracker || !(stream.bytes instanceof Uint8Array)) {
+    return;
+  }
+
+  const xobjs =
+    (typeof resources?.get === "function" ? resources.get("XObject") : null) ||
+    resources?.XObject;
+  if (!xobjs) {
+    return;
+  }
+
+  let operations;
+  try {
+    operations = collectContentStreamOperations(
+      tokenizeContentStream(stream.bytes.subarray(stream.start, stream.end))
+    );
+  } catch {
+    return;
+  }
+
+  for (const operation of operations) {
+    if (operation.operatorName !== "Do") {
+      continue;
+    }
+    const operand = operation.operands?.at(-1);
+    if (operand?.type !== "name" || !operand.value) {
+      continue;
+    }
+    const rawXObject = getXObjectResourceRawValue(xobjs, operand.value);
+    const xObjectRef = rawXObject instanceof Ref ? rawXObject : null;
+    let formStream = null;
+    try {
+      formStream = getFormXObjectStream(rawXObject, xref);
+    } catch {
+      continue;
+    }
+    if (!formStream) {
+      continue;
+    }
+    tracker.registerFormInvocationTarget({
+      xObjectRef,
+      xObjectName: operand.value,
+      streamRef: xObjectRef || formStream.dict?.objId || null,
+    });
+  }
+}
 
 // Convert PDF blend mode names to HTML5 blend mode names.
 function normalizeBlendMode(value, parsingArray = false) {
@@ -1652,8 +1751,105 @@ class PartialEvaluator {
     throw new FormatError(`Unknown PatternName: ${patternName}`);
   }
 
+  _parseVisibilityExpression(array, nestingCounter, currentResult) {
+    const MAX_NESTING = 10;
+    if (++nestingCounter > MAX_NESTING) {
+      warn("Visibility expression is too deeply nested");
+      return;
+    }
+    const length = array.length;
+    const operator = this.xref.fetchIfRef(array[0]);
+    if (length < 2 || !(operator instanceof Name)) {
+      warn("Invalid visibility expression");
+      return;
+    }
+    switch (operator.name) {
+      case "And":
+      case "Or":
+      case "Not":
+        currentResult.push(operator.name);
+        break;
+      default:
+        warn(`Invalid operator ${operator.name} in visibility expression`);
+        return;
+    }
+    for (let i = 1; i < length; i++) {
+      const raw = array[i];
+      const object = this.xref.fetchIfRef(raw);
+      if (Array.isArray(object)) {
+        const nestedResult = [];
+        currentResult.push(nestedResult);
+        // Recursively parse a subarray.
+        this._parseVisibilityExpression(object, nestingCounter, nestedResult);
+      } else if (raw instanceof Ref) {
+        // Reference to an OCG dictionary.
+        currentResult.push(raw.toString());
+      }
+    }
+  }
+
   async parseMarkedContentProps(contentProperties, resources) {
-    return parseMarkedContentProps(this.xref, contentProperties, resources);
+    let optionalContent;
+    if (contentProperties instanceof Name) {
+      const properties = resources.get("Properties");
+      optionalContent = properties.get(contentProperties.name);
+    } else if (contentProperties instanceof Dict) {
+      optionalContent = contentProperties;
+    } else {
+      throw new FormatError("Optional content properties malformed.");
+    }
+
+    const optionalContentType = optionalContent.get("Type")?.name;
+    if (optionalContentType === "OCG") {
+      return {
+        type: optionalContentType,
+        id: optionalContent.objId,
+      };
+    } else if (optionalContentType === "OCMD") {
+      const expression = optionalContent.get("VE");
+      if (Array.isArray(expression)) {
+        const result = [];
+        this._parseVisibilityExpression(expression, 0, result);
+        if (result.length > 0) {
+          return {
+            type: "OCMD",
+            expression: result,
+          };
+        }
+      }
+
+      const optionalContentGroups = optionalContent.get("OCGs");
+      if (
+        Array.isArray(optionalContentGroups) ||
+        optionalContentGroups instanceof Dict
+      ) {
+        const groupIds = [];
+        if (Array.isArray(optionalContentGroups)) {
+          for (const ocg of optionalContentGroups) {
+            groupIds.push(ocg.toString());
+          }
+        } else {
+          // Dictionary, just use the obj id.
+          groupIds.push(optionalContentGroups.objId);
+        }
+
+        return {
+          type: optionalContentType,
+          ids: groupIds,
+          policy:
+            optionalContent.get("P") instanceof Name
+              ? optionalContent.get("P").name
+              : null,
+          expression: null,
+        };
+      } else if (optionalContentGroups instanceof Ref) {
+        return {
+          type: optionalContentType,
+          id: optionalContentGroups.toString(),
+        };
+      }
+    }
+    return null;
   }
 
   async getOperatorList({
@@ -2346,9 +2542,16 @@ class PartialEvaluator {
     lang = null,
     markedContentData = null,
     disableNormalization = false,
+    includeTextEditSourceRefs = false,
     keepWhiteSpace = false,
     prevRefs = null,
     intersector = null,
+    redactionPlanRequest = null,
+    textEditPlanRequest = null,
+    textEditLayoutRequest = null,
+    textEditContainer = null,
+    textEditXObjectFormReuseTracker = null,
+    textEditXObjectFormUsageGraph = null,
   }) {
     if (stream.isAsync) {
       const bytes = await stream.asyncGetBytes();
@@ -2356,6 +2559,24 @@ class PartialEvaluator {
         stream = new Stream(bytes, 0, bytes.length, stream.dict);
       }
     }
+    if (
+      (includeTextEditSourceRefs || redactionPlanRequest) &&
+      !(stream.bytes instanceof Uint8Array)
+    ) {
+      const bytes = stream.getBytes();
+      stream = new Stream(bytes, 0, bytes.length, stream.dict);
+    }
+    const includeDecodedStreamPatch =
+      textEditPlanRequest?.includeDecodedStreamPatch === true ||
+      redactionPlanRequest?.includeDecodedStreamPatch === true;
+    const needsDecodedStreamPlanBytes =
+      includeDecodedStreamPatch ||
+      redactionPlanRequest ||
+      textEditPlanRequest?.planKind === "move";
+    const decodedStreamPatchBytes =
+      needsDecodedStreamPlanBytes && stream.bytes instanceof Uint8Array
+        ? stream.bytes.subarray(stream.start, stream.end)
+        : null;
 
     const objId = stream.dict?.objId;
     const seenRefs = new RefSet(prevRefs);
@@ -2400,8 +2621,11 @@ class PartialEvaluator {
       notASpace: -Infinity,
       transform: null,
       fontName: null,
+      font: null,
       hasEOL: false,
+      textEditSources: null,
     };
+    const redactionFontBindings = redactionPlanRequest ? new Map() : null;
 
     // Use a circular buffer (length === 2) to save the last chars in the
     // text stream.
@@ -2485,13 +2709,33 @@ class PartialEvaluator {
     const self = this;
     const xref = this.xref;
     const showSpacedTextBuffer = [];
+    let textEditPlanResult = null;
+    let textEditLayoutResult = null;
+    const serializedTextEditContainer =
+      serializePdfEditContainerDescriptor(textEditContainer);
+    const xObjectFormReuseTracker = includeTextEditSourceRefs
+      ? textEditXObjectFormReuseTracker ||
+        new PdfEditXObjectFormReuseTracker({
+          scope: "page",
+          usageGraph: textEditXObjectFormUsageGraph,
+        })
+      : null;
 
     // The xobj is parsed iff it's needed, e.g. if there is a `DO` cmd.
     let xobjs = null;
     const emptyXObjectCache = new LocalImageCache();
     const emptyGStateCache = new LocalGStateCache();
 
-    const preprocessor = new EvaluatorPreprocessor(stream, xref, stateManager);
+    const preprocessor = new EvaluatorPreprocessor(stream, xref, stateManager, {
+      includeTextEditSourceRefs,
+    });
+
+    registerTextEditXObjectFormInvocations({
+      tracker: xObjectFormReuseTracker,
+      stream,
+      resources,
+      xref,
+    });
 
     let textState, currentTextState;
 
@@ -2542,6 +2786,557 @@ class PartialEvaluator {
       );
     }
 
+    function getTextTransform(state) {
+      const { font } = state;
+      const tsm = [
+        state.fontSize * state.textHScale,
+        0,
+        0,
+        state.fontSize,
+        0,
+        state.textRise,
+      ];
+
+      if (
+        font.isType3Font &&
+        (state.fontSize <= 1 || font.isCharBBox) &&
+        !isArrayEqual(state.fontMatrix, FONT_IDENTITY_MATRIX)
+      ) {
+        const glyphHeight = font.bbox[3] - font.bbox[1];
+        if (glyphHeight > 0) {
+          tsm[3] *= glyphHeight * state.fontMatrix[3];
+        }
+      }
+
+      return Util.transform(state.ctm, Util.transform(state.textMatrix, tsm));
+    }
+
+    function cloneMatrix(matrix) {
+      return Array.from(matrix || IDENTITY_MATRIX);
+    }
+
+    function makeTextEditLayoutUnsupported(reason, extra = null) {
+      return {
+        ok: false,
+        reason,
+        ...(extra || null),
+      };
+    }
+
+    function getTextStateLayoutSnapshot(state) {
+      return {
+        fontName: state.fontName,
+        fontLoadedName: state.loadedName,
+        fontSize: state.fontSize,
+        textHScale: state.textHScale,
+        charSpacing: state.charSpacing,
+        wordSpacing: state.wordSpacing,
+        textRise: state.textRise,
+        textMatrix: cloneMatrix(state.textMatrix),
+        textLineMatrix: cloneMatrix(state.textLineMatrix),
+        ctm: cloneMatrix(state.ctm),
+        transform: getTextTransform(state),
+      };
+    }
+
+    function getInsertionPosition(transform, index) {
+      return {
+        index,
+        x: transform[4],
+        y: transform[5],
+      };
+    }
+
+    function getEncodedForLayout(font, text) {
+      if (!text) {
+        return { ok: true, encoded: "" };
+      }
+      if (typeof font?.encodeString !== "function") {
+        return makeTextEditLayoutUnsupported(
+          "text-edit-layout-font-encodeString-missing"
+        );
+      }
+      const parts = font.encodeString(text);
+      const encoded = [];
+      const failures = [];
+      for (let i = 0, ii = parts.length; i < ii; i++) {
+        const part = parts[i];
+        if (i % 2 === 0) {
+          encoded.push(part);
+        } else if (part) {
+          failures.push(part);
+        }
+      }
+      if (failures.length) {
+        return makeTextEditLayoutUnsupported(
+          "text-edit-layout-replacement-not-encodable",
+          { fontProof: { encodable: false, failures } }
+        );
+      }
+      return {
+        ok: true,
+        encoded: encoded.join(""),
+      };
+    }
+
+    function appendTextEditLayoutGlyphs({
+      layout,
+      layoutState,
+      chars,
+      text = chars,
+      extraSpacing = 0,
+      fontRole = "source",
+      startIndex,
+    }) {
+      const font = layoutState.font;
+      const glyphs = font.charsToGlyphs(chars);
+      const sourceChars = Array.from(chars);
+      const textChars = Array.from(text);
+      if (glyphs.length !== sourceChars.length) {
+        return makeTextEditLayoutUnsupported(
+          "text-edit-layout-glyph-source-map-unsupported",
+          {
+            glyphCount: glyphs.length,
+            sourceCharCount: sourceChars.length,
+          }
+        );
+      }
+      if (glyphs.length !== textChars.length) {
+        return makeTextEditLayoutUnsupported(
+          "text-edit-layout-glyph-display-map-unsupported",
+          {
+            glyphCount: glyphs.length,
+            displayCharCount: textChars.length,
+          }
+        );
+      }
+
+      const baseCharSpacing = font.vertical
+        ? -layoutState.charSpacing
+        : layoutState.charSpacing;
+      const scale = layoutState.fontMatrix[0] * layoutState.fontSize;
+
+      for (let i = 0, ii = glyphs.length; i < ii; i++) {
+        const glyph = glyphs[i];
+        const { category, originalCharCode } = glyph;
+        if (category.isInvisibleFormatMark) {
+          return makeTextEditLayoutUnsupported(
+            "text-edit-layout-invisible-glyph-unsupported"
+          );
+        }
+
+        const before = getTextTransform(layoutState);
+        let charSpacing = baseCharSpacing + (i + 1 === ii ? extraSpacing : 0);
+        let glyphWidth = glyph.width;
+        if (font.vertical) {
+          glyphWidth = glyph.vmetric ? glyph.vmetric[0] : -glyphWidth;
+        }
+
+        let scaledDim = glyphWidth * scale;
+        if (originalCharCode === 0x20) {
+          charSpacing += layoutState.wordSpacing;
+        }
+        if (category.isZeroWidthDiacritic) {
+          scaledDim = 0;
+        }
+
+        let glyphAdvance = scaledDim;
+        let spacingAdvance = charSpacing;
+        if (!font.vertical) {
+          glyphAdvance *= layoutState.textHScale;
+          spacingAdvance *= layoutState.textHScale;
+          layoutState.translateTextMatrix(glyphAdvance + spacingAdvance, 0);
+        } else {
+          layoutState.translateTextMatrix(0, glyphAdvance - spacingAdvance);
+        }
+
+        const after = getTextTransform(layoutState);
+        const index = startIndex + layout.glyphs.length;
+        layout.glyphs.push({
+          index,
+          kind: "glyph",
+          fontRole,
+          fontName: font.name || null,
+          unicode: glyph.unicode,
+          sourceChar: sourceChars[i],
+          displayChar: textChars[i],
+          encodedByteString: sourceChars[i],
+          originalCharCode,
+          glyphWidth,
+          advancePdf: font.vertical
+            ? glyphAdvance - spacingAdvance
+            : glyphAdvance + spacingAdvance,
+          glyphAdvancePdf: glyphAdvance,
+          spacingAdvancePdf: font.vertical ? -spacingAdvance : spacingAdvance,
+          x0: before[4],
+          y0: before[5],
+          x1: after[4],
+          y1: after[5],
+          transform: before,
+        });
+        layout.insertionPositions.push(
+          getInsertionPosition(after, layout.insertionPositions.length)
+        );
+      }
+      return { ok: true };
+    }
+
+    function appendTextEditLayoutSpacing({ layout, layoutState, advancePdf }) {
+      const before = getTextTransform(layoutState);
+      if (!layoutState.font.vertical) {
+        layoutState.translateTextMatrix(advancePdf, 0);
+      } else {
+        layoutState.translateTextMatrix(0, advancePdf);
+      }
+      const after = getTextTransform(layoutState);
+      const index = layout.glyphs.length;
+      layout.glyphs.push({
+        index,
+        kind: "spacing",
+        unicode: " ",
+        sourceChar: " ",
+        displayChar: " ",
+        encodedByteString: "",
+        originalCharCode: 0x20,
+        glyphWidth: 0,
+        advancePdf,
+        glyphAdvancePdf: 0,
+        spacingAdvancePdf: advancePdf,
+        x0: before[4],
+        y0: before[5],
+        x1: after[4],
+        y1: after[5],
+        transform: before,
+      });
+      layout.insertionPositions.push(
+        getInsertionPosition(after, layout.insertionPositions.length)
+      );
+      return { ok: true };
+    }
+
+    function createTextEditLayout(state, label) {
+      const startTransform = getTextTransform(state);
+      return {
+        label,
+        text: "",
+        glyphs: [],
+        insertionPositions: [getInsertionPosition(startTransform, 0)],
+      };
+    }
+
+    function finishTextEditLayout(layout) {
+      if (layout.glyphs.length) {
+        const box = {
+          xMin: Infinity,
+          yMin: Infinity,
+          xMax: -Infinity,
+          yMax: -Infinity,
+        };
+        for (const glyph of layout.glyphs) {
+          box.xMin = Math.min(box.xMin, glyph.x0, glyph.x1);
+          box.yMin = Math.min(box.yMin, glyph.y0, glyph.y1);
+          box.xMax = Math.max(box.xMax, glyph.x0, glyph.x1);
+          box.yMax = Math.max(box.yMax, glyph.y0, glyph.y1);
+        }
+        layout.sourceBox = {
+          x: box.xMin,
+          y: box.yMin,
+          width: box.xMax - box.xMin,
+          height: box.yMax - box.yMin,
+        };
+      } else {
+        const first = layout.insertionPositions[0];
+        layout.sourceBox = {
+          x: first.x,
+          y: first.y,
+          width: 0,
+          height: 0,
+        };
+      }
+      return layout;
+    }
+
+    function buildTextEditLayoutFromRuns({ label, runs, state }) {
+      const layoutState = state.clone();
+      const layout = createTextEditLayout(layoutState, label);
+      for (const run of runs) {
+        if (!run.chars) {
+          if (run.extraSpacing) {
+            const result = appendTextEditLayoutSpacing({
+              layout,
+              layoutState,
+              advancePdf: run.extraSpacing * layoutState.textHScale,
+            });
+            if (!result.ok) {
+              return result;
+            }
+            layout.text += " ";
+          }
+          continue;
+        }
+        const previousFont = layoutState.font;
+        const previousFontMatrix = layoutState.fontMatrix;
+        if (run.font) {
+          layoutState.font = run.font;
+          layoutState.fontMatrix = run.font.fontMatrix || FONT_IDENTITY_MATRIX;
+        }
+        const result = appendTextEditLayoutGlyphs({
+          layout,
+          layoutState,
+          chars: run.chars,
+          text: run.text ?? run.chars,
+          extraSpacing: run.extraSpacing || 0,
+          fontRole: run.fontRole || "source",
+          startIndex: layout.glyphs.length,
+        });
+        if (run.font) {
+          layoutState.font = previousFont;
+          layoutState.fontMatrix = previousFontMatrix;
+        }
+        if (!result.ok) {
+          return result;
+        }
+        layout.text += run.text ?? run.chars;
+      }
+      return {
+        ok: true,
+        layout: finishTextEditLayout(layout),
+      };
+    }
+
+    function getReplacementWords(replacementText) {
+      if (!/\s/.test(replacementText)) {
+        return null;
+      }
+      const words = replacementText.split(" ");
+      while (words.at(-1) === "") {
+        words.pop();
+      }
+      return words.length > 1 &&
+        words.every(word => word) &&
+        replacementText.startsWith(words.join(" "))
+        ? words
+        : null;
+    }
+
+    function buildReplacementTextEditLayoutRuns({
+      font,
+      layoutPlan,
+      replacementText,
+      state,
+    }) {
+      const wordSpacingValues = layoutPlan?.layoutProof?.wordSpacingValues;
+      const words = Array.isArray(wordSpacingValues)
+        ? getReplacementWords(replacementText)
+        : null;
+      if (!words) {
+        const encoded = getEncodedForLayout(font, replacementText);
+        if (!encoded.ok) {
+          return encoded;
+        }
+        return {
+          ok: true,
+          runs: [
+            {
+              chars: encoded.encoded,
+              text: replacementText,
+              extraSpacing: 0,
+            },
+          ],
+        };
+      }
+
+      const runs = [];
+      for (let i = 0, ii = words.length; i < ii; i++) {
+        const encoded = getEncodedForLayout(font, words[i]);
+        if (!encoded.ok) {
+          return encoded;
+        }
+        runs.push({
+          chars: encoded.encoded,
+          text: words[i],
+          extraSpacing: 0,
+        });
+        if (i < wordSpacingValues.length) {
+          runs.push({
+            chars: "",
+            text: " ",
+            extraSpacing:
+              ((state.font.vertical ? 1 : -1) *
+                wordSpacingValues[i] *
+                state.fontSize) /
+              1000,
+          });
+        }
+      }
+
+      const trailingSpaces = replacementText.length - words.join(" ").length;
+      for (let i = 0; i < trailingSpaces; i++) {
+        const encoded = getEncodedForLayout(font, " ");
+        if (!encoded.ok) {
+          return encoded;
+        }
+        runs.push({
+          chars: encoded.encoded,
+          text: " ",
+          extraSpacing: 0,
+        });
+      }
+      return { ok: true, runs };
+    }
+
+    function maybeBuildTextEditLayout({ source, runs }) {
+      if (
+        !textEditLayoutRequest ||
+        textEditLayoutResult ||
+        !isSameTextEditSource(source, textEditLayoutRequest.textEditSource)
+      ) {
+        return;
+      }
+      if (!source?.editable) {
+        textEditLayoutResult = makeTextEditLayoutUnsupported(
+          source?.reason || "text-edit-layout-source-not-editable"
+        );
+        return;
+      }
+
+      const textStateAtSource = textState.clone();
+      const textEditSource = cloneTextEditSource({
+        ...source,
+        fontName: textState.fontName,
+        fontLoadedName: textState.loadedName,
+        textState: getTextEditSourceStateSnapshot(),
+      });
+      const expectedSourceText = textEditLayoutRequest.expectedSourceText;
+      const sourceText = getSourceTextFromTextEditSource(textEditSource);
+      if (
+        typeof expectedSourceText === "string" &&
+        sourceText !== expectedSourceText
+      ) {
+        textEditLayoutResult = makeTextEditLayoutUnsupported(
+          "text-edit-layout-source-text-mismatch",
+          {
+            sourceProof: {
+              sourceText,
+              expectedSourceText,
+              sourceTextMatches: false,
+            },
+          }
+        );
+        return;
+      }
+
+      const sourceLayout = buildTextEditLayoutFromRuns({
+        label: "source",
+        runs,
+        state: textStateAtSource,
+      });
+      if (!sourceLayout.ok) {
+        textEditLayoutResult = sourceLayout;
+        return;
+      }
+
+      const result = {
+        ok: true,
+        kind: "pdfjs-source-text-edit-layout",
+        editGeneration: textEditLayoutRequest.editGeneration ?? null,
+        textEditSource,
+        expectedSourceText: expectedSourceText ?? sourceText,
+        sourceProof: {
+          operatorName: textEditSource.operatorName,
+          operatorIndex: textEditSource.operatorIndex,
+          operatorFingerprint: textEditSource.operatorFingerprint,
+          sourceText,
+          sourceTextMatches:
+            typeof expectedSourceText !== "string" ||
+            sourceText === expectedSourceText,
+        },
+        fontProof: {
+          fontName: textState.fontName,
+          fontLoadedName: textState.loadedName,
+          fontSize: textState.fontSize,
+          textHScale: textState.textHScale,
+          charSpacing: textState.charSpacing,
+          wordSpacing: textState.wordSpacing,
+        },
+        textState: getTextStateLayoutSnapshot(textStateAtSource),
+        operator: {
+          kind: textEditSource.operatorName,
+          segments: textEditSource.segments || [],
+        },
+        sourceLayout: sourceLayout.layout,
+      };
+
+      if (typeof textEditLayoutRequest.replacementText === "string") {
+        const layoutPlan = textEditPlanner.planTextSourceEdit({
+          textEditSource,
+          expectedSourceText: expectedSourceText ?? sourceText,
+          replacementText: textEditLayoutRequest.replacementText,
+          visibleText: textEditLayoutRequest.visibleText ?? null,
+          font: textState.font,
+          editGeneration: textEditLayoutRequest.editGeneration ?? null,
+        });
+        if (!layoutPlan.ok) {
+          textEditLayoutResult = makeTextEditLayoutUnsupported(
+            layoutPlan.reason || "text-edit-layout-replacement-plan-failed",
+            { layoutPlan }
+          );
+          return;
+        }
+        const replacementRuns = buildReplacementTextEditLayoutRuns({
+          font: textState.font,
+          layoutPlan,
+          replacementText: textEditLayoutRequest.replacementText,
+          state: textStateAtSource,
+        });
+        if (!replacementRuns.ok) {
+          textEditLayoutResult = replacementRuns;
+          return;
+        }
+        const replacementLayout = buildTextEditLayoutFromRuns({
+          label: "replacement",
+          runs: replacementRuns.runs,
+          state: textStateAtSource,
+        });
+        if (!replacementLayout.ok) {
+          textEditLayoutResult = replacementLayout;
+          return;
+        }
+        result.replacementText = textEditLayoutRequest.replacementText;
+        result.layoutProof = layoutPlan.layoutProof || null;
+        result.replacementFontProof = layoutPlan.fontProof || null;
+        result.replacementLayout = replacementLayout.layout;
+      }
+
+      textEditLayoutResult = result;
+    }
+
+    function getShowSpacedTextRuns(elements) {
+      const spaceFactor =
+        ((textState.font.vertical ? 1 : -1) * textState.fontSize) / 1000;
+      const buffer = [];
+      const runs = [];
+      for (const item of elements) {
+        if (typeof item === "string") {
+          buffer.push(item);
+        } else if (typeof item === "number" && item !== 0) {
+          const chars = buffer.join("");
+          buffer.length = 0;
+          runs.push({
+            chars,
+            extraSpacing: item * spaceFactor,
+          });
+        }
+      }
+      if (buffer.length > 0) {
+        runs.push({
+          chars: buffer.join(""),
+          extraSpacing: 0,
+        });
+      }
+      return runs;
+    }
+
     function ensureTextContentItem() {
       if (textContentItem.initialized) {
         return textContentItem;
@@ -2562,6 +3357,7 @@ class PartialEvaluator {
         }
       }
       textContentItem.fontName = loadedName;
+      textContentItem.font = font;
 
       const trm = (textContentItem.transform = getCurrentTextTransform());
       if (!font.vertical) {
@@ -2633,7 +3429,7 @@ class PartialEvaluator {
         text = normalizeUnicode(text);
       }
       const bidiResult = bidi(text, -1, textChunk.vertical);
-      return {
+      const item = {
         str: bidiResult.str,
         dir: bidiResult.dir,
         width: Math.abs(textChunk.totalWidth),
@@ -2642,6 +3438,273 @@ class PartialEvaluator {
         fontName: textChunk.fontName,
         hasEOL: textChunk.hasEOL,
       };
+      const textEditSource = buildTextItemSource(
+        textChunk.textEditSources,
+        item,
+        textChunk.font
+      );
+      if (textEditSource) {
+        maybePlanTextEdit(textChunk, textEditSource, item);
+        item.textEditSource = textEditSource;
+      }
+      return item;
+    }
+
+    function getTextEditSourceId(source) {
+      return `${source.operatorName}:${source.operatorIndex}:${
+        source.operatorFingerprint || ""
+      }`;
+    }
+
+    function cloneTextEditSource(source) {
+      const clone = { ...source };
+      if (source.sources) {
+        clone.sources = source.sources.map(cloneTextEditSource);
+      }
+      if (source.operatorRange) {
+        clone.operatorRange = source.operatorRange.slice();
+      }
+      if (source.operandRange) {
+        clone.operandRange = source.operandRange.slice();
+      }
+      if (source.fullByteRange) {
+        clone.fullByteRange = source.fullByteRange.slice();
+      }
+      if (source.segments) {
+        clone.segments = source.segments.map(segment => {
+          const segmentClone = { ...segment };
+          if (segment.rawRange) {
+            segmentClone.rawRange = segment.rawRange.slice();
+          }
+          if (segment.contentRange) {
+            segmentClone.contentRange = segment.contentRange.slice();
+          }
+          if (segment.logicalRange) {
+            segmentClone.logicalRange = segment.logicalRange.slice();
+          }
+          return segmentClone;
+        });
+      }
+      if (source.textState) {
+        clone.textState = {
+          ...source.textState,
+          ctm: source.textState.ctm?.slice?.() || null,
+          textMatrix: source.textState.textMatrix?.slice?.() || null,
+          textLineMatrix: source.textState.textLineMatrix?.slice?.() || null,
+        };
+      }
+      return clone;
+    }
+
+    function isSameRange(rangeA, rangeB) {
+      return (
+        rangeA?.length === rangeB?.length &&
+        rangeA.every((value, index) => value === rangeB[index])
+      );
+    }
+
+    function isSameTextEditSource(source, target) {
+      if (!source || !target) {
+        return false;
+      }
+      if (source.grouped || target.grouped) {
+        if (
+          source.grouped !== target.grouped ||
+          source.sources?.length !== target.sources?.length
+        ) {
+          return false;
+        }
+        return source.sources.every((sourceEntry, index) =>
+          isSameTextEditSource(sourceEntry, target.sources[index])
+        );
+      }
+      return (
+        source.operatorName === target.operatorName &&
+        source.operatorIndex === target.operatorIndex &&
+        isSameRange(source.operatorRange, target.operatorRange) &&
+        isSameRange(source.operandRange, target.operandRange) &&
+        JSON.stringify(source.operatorFingerprint) ===
+          JSON.stringify(target.operatorFingerprint)
+      );
+    }
+
+    function maybePlanTextEdit(textChunk, textEditSource, textItem) {
+      if (
+        !textEditPlanRequest ||
+        textEditPlanResult ||
+        !isSameTextEditSource(
+          textEditSource,
+          textEditPlanRequest.textEditSource
+        )
+      ) {
+        return;
+      }
+      const candidateResult =
+        !textEditSource.grouped &&
+        isWritableContentStreamStrategy(
+          textEditPlanRequest.container?.writableStrategy
+        )
+          ? buildTextEditCandidate({
+              container: textEditPlanRequest.container,
+              textEditSource,
+              textState: textEditSource.textState,
+              font: textChunk.font,
+            })
+          : null;
+      const candidateGroupResult =
+        textEditSource.grouped &&
+        isWritableContentStreamStrategy(
+          textEditPlanRequest.container?.writableStrategy
+        )
+          ? buildTextEditCandidateGroup({
+              container: textEditPlanRequest.container,
+              textEditSources: textEditSource.sources,
+              textItem,
+              font: textChunk.font,
+            })
+          : null;
+      if (
+        candidateResult?.candidate?.kind !== undefined &&
+        candidateResult.candidate.kind !== PDF_TEXT_EDIT_CANDIDATE_KIND
+      ) {
+        return;
+      }
+      if (
+        candidateGroupResult?.candidateGroup?.kind !== undefined &&
+        candidateGroupResult.candidateGroup.kind !==
+          PDF_TEXT_EDIT_CANDIDATE_GROUP_KIND
+      ) {
+        return;
+      }
+      let plan;
+      if (textEditPlanRequest.planKind === "move") {
+        plan = textEditPlanner.planTextSourceMove({
+          textEditSource: candidateResult ? null : textEditSource,
+          textEditCandidate: candidateResult?.candidate || null,
+          expectedSourceText: textEditPlanRequest.expectedSourceText,
+          delta: textEditPlanRequest.delta,
+          decodedBytes:
+            textEditPlanRequest.decodedBytes || decodedStreamPatchBytes,
+          editGeneration: textEditPlanRequest.editGeneration ?? null,
+        });
+      } else if (textEditSource.grouped) {
+        plan = textEditPlanner.planTextSourceEditGroup({
+          textEditSources: candidateGroupResult ? null : textEditSource.sources,
+          textEditCandidateGroup: candidateGroupResult?.candidateGroup || null,
+          expectedSourceText: textEditPlanRequest.expectedSourceText,
+          replacementText: textEditPlanRequest.replacementText,
+          visibleText: textEditPlanRequest.visibleText ?? null,
+          font: textChunk.font,
+          editGeneration: textEditPlanRequest.editGeneration ?? null,
+        });
+      } else {
+        plan = textEditPlanner.planTextSourceEdit({
+          textEditSource: candidateResult ? null : textEditSource,
+          textEditCandidate: candidateResult?.candidate || null,
+          expectedSourceText: textEditPlanRequest.expectedSourceText,
+          replacementText: textEditPlanRequest.replacementText,
+          visibleText: textEditPlanRequest.visibleText ?? null,
+          font: textChunk.font,
+          editGeneration: textEditPlanRequest.editGeneration ?? null,
+        });
+      }
+      if (includeDecodedStreamPatch) {
+        plan.decodedStreamPatch = plan.ok
+          ? rewriteTextSourceEdit({
+              decodedBytes:
+                textEditPlanRequest.decodedBytes || decodedStreamPatchBytes,
+              plan,
+            })
+          : {
+              ok: false,
+              reason: plan.reason || "text-edit-plan-not-ok",
+            };
+      }
+      textEditPlanResult = plan;
+    }
+
+    function buildGroupedTextItemSource(sources, textItem, font) {
+      const clonedSources = sources.map(({ source }) =>
+        cloneTextEditSource(source)
+      );
+      const group = buildTextEditCandidateGroup({
+        textEditSources: clonedSources,
+        textItem,
+        font,
+      });
+      if (!group.ok) {
+        return {
+          editable: false,
+          grouped: true,
+          kind: PDF_TEXT_EDIT_CANDIDATE_GROUP_KIND,
+          operatorName: "group",
+          reason:
+            group.reason || TEXT_ITEM_CROSSES_NON_CONTIGUOUS_SOURCE_OPERATORS,
+          sources: clonedSources,
+        };
+      }
+      return group.candidateGroup;
+    }
+
+    function buildTextItemSource(sources, textItem, font) {
+      if (!includeTextEditSourceRefs || !sources?.length) {
+        return null;
+      }
+      if (sources.length > 1) {
+        return buildGroupedTextItemSource(sources, textItem, font);
+      }
+      return cloneTextEditSource(sources[0].source);
+    }
+
+    function getTextEditSourceStateSnapshot() {
+      return {
+        inTextObject: true,
+        ctm: Array.from(textState.ctm || IDENTITY_MATRIX),
+        fontName: textState.fontName,
+        fontLoadedName: textState.loadedName,
+        fontSize: textState.fontSize,
+        textHScale: textState.textHScale,
+        charSpacing: textState.charSpacing,
+        wordSpacing: textState.wordSpacing,
+        leading: textState.leading,
+        textRise: textState.textRise,
+        textMatrix: Array.from(textState.textMatrix || IDENTITY_MATRIX),
+        textLineMatrix: Array.from(textState.textLineMatrix || IDENTITY_MATRIX),
+      };
+    }
+
+    function recordTextEditSource(textChunk, source) {
+      if (!includeTextEditSourceRefs || !source) {
+        return;
+      }
+      const id = getTextEditSourceId(source);
+      const sources = (textChunk.textEditSources ||= []);
+      if (sources.some(entry => entry.id === id)) {
+        return;
+      }
+      sources.push({
+        id,
+        source: {
+          ...source,
+          ...(serializedTextEditContainer
+            ? {
+                container: serializedTextEditContainer,
+                ...(serializedTextEditContainer.writableStrategy ===
+                "unsupported"
+                  ? {
+                      editable: false,
+                      reason:
+                        serializedTextEditContainer.reason ||
+                        "text-edit-container-writer-unsupported",
+                    }
+                  : null),
+              }
+            : null),
+          fontName: textState.fontName,
+          fontLoadedName: textState.loadedName,
+          textState: getTextEditSourceStateSnapshot(),
+        },
+      });
     }
 
     async function handleSetFont(fontName, fontRef) {
@@ -2658,6 +3721,7 @@ class PartialEvaluator {
       textState.loadedName = translated.loadedName;
       textState.font = translated.font;
       textState.fontMatrix = translated.font.fontMatrix || FONT_IDENTITY_MATRIX;
+      redactionFontBindings?.set(fontName, translated.font);
     }
 
     function applyInverseRotation(x, y, matrix) {
@@ -2895,7 +3959,7 @@ class PartialEvaluator {
       return true;
     }
 
-    function buildTextContentItem({ chars, extraSpacing }) {
+    function buildTextContentItem({ chars, extraSpacing, source = null }) {
       if (
         currentTextState !== textState &&
         (currentTextState.fontSize !== textState.fontSize ||
@@ -2990,6 +4054,7 @@ class PartialEvaluator {
         // Must be called after compareWithLastPosition because
         // the textContentItem could have been flushed.
         const textChunk = ensureTextContentItem();
+        recordTextEditSource(textChunk, source);
         if (category.isZeroWidthDiacritic) {
           scaledDim = 0;
         }
@@ -3119,6 +4184,8 @@ class PartialEvaluator {
       textContent.items.push(runBidiTransform(textContentItem));
       textContentItem.initialized = false;
       textContentItem.str.length = 0;
+      textContentItem.font = null;
+      textContentItem.textEditSources = null;
     }
 
     function enqueueChunk(batch = false) {
@@ -3246,6 +4313,10 @@ class PartialEvaluator {
               continue;
             }
 
+            maybeBuildTextEditLayout({
+              source: operation.source,
+              runs: getShowSpacedTextRuns(args[0]),
+            });
             const spaceFactor =
               ((textState.font.vertical ? 1 : -1) * textState.fontSize) / 1000;
             const elements = args[0];
@@ -3267,6 +4338,7 @@ class PartialEvaluator {
                 buildTextContentItem({
                   chars: str,
                   extraSpacing: item * spaceFactor,
+                  source: operation.source,
                 });
               }
             }
@@ -3277,6 +4349,7 @@ class PartialEvaluator {
               buildTextContentItem({
                 chars: str,
                 extraSpacing: 0,
+                source: operation.source,
               });
             }
             break;
@@ -3285,9 +4358,19 @@ class PartialEvaluator {
               self.ensureStateFont(stateManager.state);
               continue;
             }
+            maybeBuildTextEditLayout({
+              source: operation.source,
+              runs: [
+                {
+                  chars: args[0],
+                  extraSpacing: 0,
+                },
+              ],
+            });
             buildTextContentItem({
               chars: args[0],
               extraSpacing: 0,
+              source: operation.source,
             });
             break;
           case OPS.nextLineShowText:
@@ -3332,6 +4415,7 @@ class PartialEvaluator {
                 }
 
                 let xobj = xobjs.getRaw(name);
+                const xObjectRef = xobj instanceof Ref ? xobj : null;
                 if (xobj instanceof Ref) {
                   if (emptyXObjectCache.getByRef(xobj)) {
                     resolveXObject();
@@ -3381,6 +4465,37 @@ class PartialEvaluator {
                 }
 
                 const localResources = dict.get("Resources");
+                const xObjectReuse =
+                  xObjectFormReuseTracker?.beginFormInvocation({
+                    xObjectRef,
+                    xObjectName: name,
+                    streamRef: xObjectRef || dict.objId || null,
+                  });
+                const parentXObjectFormDepth = getPdfEditContainerPathTypeCount(
+                  serializedTextEditContainer?.containerPath,
+                  "xobject-form"
+                );
+                let xObjectFormReason = "text-edit-xobject-form-not-enabled";
+                if (parentXObjectFormDepth > 0) {
+                  xObjectFormReason = "text-edit-nested-container-not-enabled";
+                } else if ((xObjectReuse?.aliasCount || 0) > 1) {
+                  xObjectFormReason =
+                    "text-edit-xobject-form-alias-unsupported";
+                } else if (xObjectReuse?.reused === true) {
+                  xObjectFormReason = "text-edit-xobject-form-reused";
+                } else if (!xObjectRef) {
+                  xObjectFormReason =
+                    "text-edit-xobject-form-stream-ref-missing";
+                }
+                const xObjectTextEditContainer =
+                  createXObjectFormContainerDescriptor({
+                    parentDescriptor: serializedTextEditContainer,
+                    xObjectRef,
+                    xObjectName: name,
+                    streamRef: xObjectRef || dict.objId || null,
+                    reason: xObjectFormReason,
+                    reuse: xObjectReuse || null,
+                  });
 
                 // Enqueue the `textContent` chunk before parsing the /Form
                 // XObject.
@@ -3418,8 +4533,12 @@ class PartialEvaluator {
                     lang,
                     markedContentData,
                     disableNormalization,
+                    includeTextEditSourceRefs,
                     keepWhiteSpace,
                     prevRefs: seenRefs,
+                    textEditContainer: xObjectTextEditContainer,
+                    textEditXObjectFormReuseTracker: xObjectFormReuseTracker,
+                    textEditXObjectFormUsageGraph,
                   })
                   .then(function () {
                     if (!sinkWrapper.enqueueInvoked) {
@@ -3554,7 +4673,46 @@ class PartialEvaluator {
       }
       flushTextContentItem();
       enqueueChunk();
-      resolve();
+      if (includeDecodedStreamPatch && !textEditPlanResult) {
+        textEditPlanResult = {
+          ok: false,
+          reason: "text-edit-source-anchor-not-found",
+          decodedStreamPatch: {
+            ok: false,
+            reason: "text-edit-source-anchor-not-found",
+          },
+        };
+      }
+      if (textEditLayoutRequest && !textEditLayoutResult) {
+        textEditLayoutResult = makeTextEditLayoutUnsupported(
+          "text-edit-layout-source-anchor-not-found"
+        );
+      }
+      let result;
+      if (redactionPlanRequest) {
+        const redactionResult = rewriteRedactionContentStream({
+          decodedBytes:
+            redactionPlanRequest.decodedBytes || decodedStreamPatchBytes,
+          regions: redactionPlanRequest.regions,
+          fontBindings: redactionFontBindings,
+        });
+        if (redactionResult.ok) {
+          result = {
+            ok: true,
+            report: redactionResult.report,
+            ...(redactionPlanRequest.includeDecodedStreamPatch
+              ? { decodedStreamPatch: redactionResult }
+              : null),
+          };
+        } else {
+          result = redactionResult;
+        }
+      } else if (textEditPlanRequest) {
+        result = textEditPlanResult;
+      } else if (textEditLayoutRequest) {
+        result = textEditLayoutResult;
+      }
+      resolve(result);
     }).catch(reason => {
       if (reason instanceof AbortException) {
         return;
@@ -4203,7 +5361,9 @@ class PartialEvaluator {
   isSerifFont(baseFontName) {
     // Simulating descriptor flags attribute
     const fontNameWoStyle = baseFontName.split("-", 1)[0];
-    return fontNameWoStyle in getSerifFonts() || /serif/i.test(fontNameWoStyle);
+    return (
+      fontNameWoStyle in getSerifFonts() || /serif/gi.test(fontNameWoStyle)
+    );
   }
 
   getBaseFontMetrics(name) {
@@ -4434,13 +5594,6 @@ class PartialEvaluator {
         // FontDescriptor is only required for Type3 fonts when the document
         // is a tagged pdf.
         descriptor = Dict.empty;
-      } else if (composite) {
-        // Some PDFs omit the FontDescriptor on the descendant CIDFont when
-        // referencing one of the standard Acrobat CJK fonts via a predefined
-        // CMap (e.g. /Encoding /90ms-RKSJ-H with /BaseFont /HeiseiMin-W3).
-        // Fall through so the CMap is loaded by the composite-font path
-        // below; otherwise multi-byte codes would be decoded byte-by-byte.
-        descriptor = Dict.empty;
       } else {
         // Before PDF 1.5 if the font was one of the base 14 fonts, having a
         // FontDescriptor was not required.
@@ -4573,15 +5726,9 @@ class PartialEvaluator {
       throw new FormatError("invalid font name");
     }
 
-    let fontFile, fontFileN, subtype, length1, length2, length3;
+    let fontFile, subtype, length1, length2, length3;
     try {
-      for (const n of ["FontFile", "FontFile2", "FontFile3"]) {
-        fontFile = descriptor.get(n);
-        if (fontFile) {
-          fontFileN = n;
-          break;
-        }
-      }
+      fontFile = descriptor.get("FontFile", "FontFile2", "FontFile3");
 
       if (fontFile) {
         if (!(fontFile instanceof BaseStream)) {
@@ -4691,7 +5838,6 @@ class PartialEvaluator {
       name: fontName.name,
       subtype,
       file: fontFile,
-      fontFileN,
       length1,
       length2,
       length3,
@@ -4733,35 +5879,7 @@ class PartialEvaluator {
     const newProperties = await this.extractDataStructures(dict, properties);
     this.extractWidths(dict, descriptor, newProperties);
 
-    const font = new Font(fontName.name, fontFile, newProperties, this.options);
-    // The embedded font may have been too corrupt to parse, in which case
-    // we ended up in the fallback path without a substitution selected.
-    // Try the substitution map now so text renders in a font close to what
-    // the document asked for (issue 7625).
-    if (
-      font.missingFile &&
-      !font.systemFontInfo &&
-      !isType3Font &&
-      this.options.useSystemFonts
-    ) {
-      const standardFontName = getStandardFontName(fontName.name);
-      const substitution = getFontSubstitution(
-        this.systemFontCache,
-        this.idFactory,
-        this.options.standardFontDataUrl,
-        fontName.name,
-        standardFontName,
-        type
-      );
-      if (substitution) {
-        if (substitution.guessFallback) {
-          substitution.guessFallback = false;
-          substitution.css += `,${font.fallbackName}`;
-        }
-        font.systemFontInfo = substitution;
-      }
-    }
-    return font;
+    return new Font(fontName.name, fontFile, newProperties, this.options);
   }
 
   static buildFontPaths(font, glyphs, handler, evaluatorOptions) {
@@ -5183,6 +6301,52 @@ class EvalState {
   }
 }
 
+function getSourceTrackerBytes(stream) {
+  if (
+    stream.bytes instanceof Uint8Array &&
+    Number.isInteger(stream.start) &&
+    Number.isInteger(stream.end)
+  ) {
+    return stream.bytes.subarray(stream.start, stream.end);
+  }
+  return null;
+}
+
+class TextEditSourceTracker {
+  #operations = null;
+
+  #nextOperationIndex = 0;
+
+  static #textOperators = new Set(["Tj", "TJ", "'", '"']);
+
+  constructor(stream) {
+    const bytes = getSourceTrackerBytes(stream);
+    if (!bytes) {
+      return;
+    }
+    this.#operations = collectContentStreamOperations(
+      tokenizeContentStream(bytes)
+    );
+  }
+
+  nextOperationSource(command) {
+    const operation = this.#operations?.[this.#nextOperationIndex++];
+    if (!operation || operation.operatorName !== command) {
+      if (TextEditSourceTracker.#textOperators.has(command)) {
+        return {
+          editable: false,
+          reason: "source-tracker-parser-token-mismatch",
+          operatorName: command,
+          expectedOperatorName: operation?.operatorName || null,
+          operatorIndex: operation?.operatorIndex ?? null,
+        };
+      }
+      return null;
+    }
+    return buildTextOperatorSource(operation);
+  }
+}
+
 class EvaluatorPreprocessor {
   static get opMap() {
     // Specifies properties for each command
@@ -5315,9 +6479,17 @@ class EvaluatorPreprocessor {
 
   static MAX_INVALID_PATH_OPS = 10;
 
-  constructor(stream, xref, stateManager = new StateManager()) {
+  constructor(
+    stream,
+    xref,
+    stateManager = new StateManager(),
+    { includeTextEditSourceRefs = false } = {}
+  ) {
     // TODO(mduan): pass array of knownCommands rather than this.opMap
     // dictionary
+    this._sourceTracker = includeTextEditSourceRefs
+      ? new TextEditSourceTracker(stream)
+      : null;
     this.parser = new Parser({
       lexer: new Lexer(stream, EvaluatorPreprocessor.opMap),
       xref,
@@ -5355,6 +6527,7 @@ class EvaluatorPreprocessor {
   //
   read(operation) {
     let args = operation.args;
+    operation.source = null;
     while (true) {
       const obj = this.parser.getObj();
       if (obj instanceof Cmd) {
@@ -5365,6 +6538,7 @@ class EvaluatorPreprocessor {
           warn(`Unknown command "${cmd}".`);
           continue;
         }
+        const source = this._sourceTracker?.nextOperationSource(cmd) ?? null;
 
         const fn = opSpec.id;
         const numArgs = opSpec.numArgs;
@@ -5430,6 +6604,7 @@ class EvaluatorPreprocessor {
 
         operation.fn = fn;
         operation.args = args;
+        operation.source = source;
         return true;
       }
       if (obj === EOF) {

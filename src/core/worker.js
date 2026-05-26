@@ -33,6 +33,7 @@ import { Dict, isDict, Ref, RefSetCache } from "./primitives.js";
 import { LocalPdfManager, NetworkPdfManager } from "./pdf_manager.js";
 import { MessageHandler, wrapReason } from "../shared/message_handler.js";
 import { AnnotationFactory } from "./annotation.js";
+import { applyTextEditContentStreamPatches } from "./text_edit_content_stream.js";
 import { clearGlobalCaches } from "./cleanup_helper.js";
 import { incrementalUpdate } from "./writer.js";
 import { PDFEditor } from "./editor/pdf_editor.js";
@@ -559,7 +560,7 @@ class WorkerMessageHandler {
 
     handler.on(
       "ExtractPages",
-      async function ({ pageInfos, annotationStorage }) {
+      async function ({ pageInfos, annotationStorage, customOutlineItems }) {
         if (!pageInfos) {
           warn("extractPages: nothing to extract.");
           return null;
@@ -649,7 +650,9 @@ class WorkerMessageHandler {
             annotationStorage,
             pdfManager.pdfDocument,
             handler,
-            task
+            task,
+            null,
+            customOutlineItems
           );
           return buffer;
         } catch (reason) {
@@ -664,8 +667,46 @@ class WorkerMessageHandler {
     );
 
     handler.on(
+      "ExportRedactedDocument",
+      async function ({ redactionPatches, annotationStorage }) {
+        if (!Array.isArray(redactionPatches) || redactionPatches.length === 0) {
+          warn("exportRedactedDocument: no redaction patches.");
+          return null;
+        }
+
+        let task;
+        try {
+          const pdfEditor = new PDFEditor();
+          task = new WorkerTask("ExportRedactedDocument");
+          startWorkerTask(task);
+          return await pdfEditor.extractPages(
+            [{ document: pdfManager.pdfDocument }],
+            annotationStorage,
+            pdfManager.pdfDocument,
+            handler,
+            task,
+            redactionPatches
+          );
+        } catch (reason) {
+          warn(`exportRedactedDocument: "${reason}".`);
+          return null;
+        } finally {
+          if (task) {
+            finishWorkerTask(task);
+          }
+        }
+      }
+    );
+
+    handler.on(
       "SaveDocument",
-      async function ({ isPureXfa, numPages, annotationStorage, filename }) {
+      async function ({
+        isPureXfa,
+        numPages,
+        annotationStorage,
+        filename,
+        textEditPatches = null,
+      }) {
         const globalPromises = [
           pdfManager.requestLoadedStream(),
           pdfManager.ensureCatalog("acroForm"),
@@ -690,6 +731,12 @@ class WorkerMessageHandler {
         ] = await Promise.all(globalPromises);
         const catalogRef = xref.trailer.getRaw("Root") || null;
         let structTreeRoot;
+
+        await applyTextEditContentStreamPatches({
+          patches: textEditPatches,
+          xref,
+          changes,
+        });
 
         if (newAnnotationsByPage) {
           if (!_structTreeRoot) {
@@ -884,6 +931,7 @@ class WorkerMessageHandler {
             cacheKey: data.cacheKey,
             annotationStorage: data.annotationStorage,
             modifiedIds: data.modifiedIds,
+            textEditContentStreamPatch: data.textEditContentStreamPatch,
             pageIndex,
           })
           .then(
@@ -913,8 +961,14 @@ class WorkerMessageHandler {
     });
 
     handler.on("GetTextContent", function (data, sink) {
-      const { pageId, pageIndex, includeMarkedContent, disableNormalization } =
-        data;
+      const {
+        pageId,
+        pageIndex,
+        includeMarkedContent,
+        disableNormalization,
+        includeTextEditSourceRefs,
+        textEditContentStreamPatch,
+      } = data;
 
       pdfManager.getPage(pageId).then(function (page) {
         const task = new WorkerTask("GetTextContent: page " + pageIndex);
@@ -930,6 +984,8 @@ class WorkerMessageHandler {
             sink,
             includeMarkedContent,
             disableNormalization,
+            includeTextEditSourceRefs,
+            textEditContentStreamPatch,
           })
           .then(
             function () {
@@ -954,6 +1010,121 @@ class WorkerMessageHandler {
               //       "Uncaught exception: ..." messages in the console)?
             }
           );
+      });
+    });
+
+    handler.on("PlanTextSourceEdit", function (data) {
+      const {
+        pageId,
+        pageIndex,
+        textEditSource,
+        expectedSourceText,
+        replacementText,
+        visibleText,
+        editGeneration,
+        includeDecodedStreamPatch,
+      } = data;
+
+      return pdfManager.getPage(pageId).then(function (page) {
+        const task = new WorkerTask("PlanTextSourceEdit: page " + pageIndex);
+        startWorkerTask(task);
+
+        return page
+          .planTextSourceEdit({
+            handler,
+            task,
+            textEditSource,
+            expectedSourceText,
+            replacementText,
+            visibleText,
+            editGeneration,
+            includeDecodedStreamPatch: includeDecodedStreamPatch === true,
+          })
+          .finally(function () {
+            finishWorkerTask(task);
+          });
+      });
+    });
+
+    handler.on("PlanTextSourceMove", function (data) {
+      const {
+        pageId,
+        pageIndex,
+        textEditSource,
+        expectedSourceText,
+        delta,
+        editGeneration,
+        includeDecodedStreamPatch,
+      } = data;
+
+      return pdfManager.getPage(pageId).then(function (page) {
+        const task = new WorkerTask("PlanTextSourceMove: page " + pageIndex);
+        startWorkerTask(task);
+
+        return page
+          .planTextSourceMove({
+            handler,
+            task,
+            textEditSource,
+            expectedSourceText,
+            delta,
+            editGeneration,
+            includeDecodedStreamPatch: includeDecodedStreamPatch === true,
+          })
+          .finally(function () {
+            finishWorkerTask(task);
+          });
+      });
+    });
+
+    handler.on("PlanRedaction", function (data) {
+      const { pageId, pageIndex, regions, includeDecodedStreamPatch } = data;
+
+      return pdfManager.getPage(pageId).then(function (page) {
+        const task = new WorkerTask("PlanRedaction: page " + pageIndex);
+        startWorkerTask(task);
+
+        return page
+          .planRedaction({
+            handler,
+            task,
+            regions,
+            includeDecodedStreamPatch: includeDecodedStreamPatch === true,
+          })
+          .finally(function () {
+            finishWorkerTask(task);
+          });
+      });
+    });
+
+    handler.on("BeginTextEditLayout", function (data) {
+      const {
+        pageId,
+        pageIndex,
+        textEditSource,
+        expectedSourceText,
+        visibleText,
+        replacementText,
+        editGeneration,
+      } = data;
+
+      return pdfManager.getPage(pageId).then(function (page) {
+        const task = new WorkerTask("BeginTextEditLayout: page " + pageIndex);
+        startWorkerTask(task);
+
+        return page
+          .beginTextEditLayout({
+            handler,
+            task,
+            textEditSource,
+            expectedSourceText,
+            visibleText,
+            replacementText,
+            editGeneration,
+          })
+          .finally(function () {
+            finishWorkerTask(task);
+          });
       });
     });
 

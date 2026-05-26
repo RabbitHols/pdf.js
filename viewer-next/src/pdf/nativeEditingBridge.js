@@ -95,7 +95,7 @@ export function createNativeEditingBridge({
     const counts = readNativeTextEditCounts();
     updateState({
       ...counts,
-      ...(message ? { message } : null),
+      ...(message !== null ? { message } : null),
     });
   }
 
@@ -297,7 +297,13 @@ export function createNativeEditingBridge({
 
   function onTextLayerRendered(event) {
     if (event.pageNumber === state.textEditPageNumber) {
-      requestAnimationFrame(() => refreshNativeTextEditCapabilityState());
+      requestAnimationFrame(() => {
+        const counts = readNativeTextEditCounts();
+        updateState({
+          ...counts,
+          ...(counts.textEditEditableCount > 0 ? { message: "" } : null),
+        });
+      });
     }
   }
 

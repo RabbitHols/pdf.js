@@ -29,6 +29,7 @@ import {
   setVerbosityLevel,
   shadow,
   unreachable,
+  Util,
   warn,
 } from "../shared/util.js";
 import {
@@ -951,12 +952,15 @@ class PDFDocumentProxy {
   }
 
   /**
+   * @param {Object} [params] - Save parameters.
+   * @param {Array<Object>} [params.textEditPatches] - Experimental native
+   *   text edit content stream patches to apply.
    * @returns {Promise<Uint8Array<ArrayBuffer>>} A promise that is
    *   resolved with a {Uint8Array<ArrayBuffer>} containing the
    *   full data of the saved document.
    */
-  saveDocument() {
-    return this._transport.saveDocument();
+  saveDocument(params = null) {
+    return this._transport.saveDocument(params);
   }
 
   /**
@@ -977,6 +981,10 @@ class PDFDocumentProxy {
    *  the same entry, and must fully cover the filtered page list when any
    *  entry in the same call specifies `insertAfter` (partial arrays are
    *  rejected in that case).
+   * @property {Array<number>} [pageRotations] Rotation deltas, in degrees, for
+   *  pages contributed by this entry. Values are matched to the filtered page
+   *  list order and added to each source page rotation. Only multiples of 90
+   *  degrees are applied.
    * @property {number} [insertAfter] 0-based index in the base sequential
    *  sequence (the concatenation of entries that have neither `pageIndices`
    *  nor `insertAfter`) after which to insert the pages. When every
@@ -993,8 +1001,17 @@ class PDFDocumentProxy {
    * @returns {Promise<Uint8Array>} A promise that is resolved with a
    *   {Uint8Array} containing the full data of the saved document.
    */
-  extractPages(pageInfos) {
-    return this._transport.extractPages(pageInfos);
+  extractPages(pageInfos, options = null) {
+    return this._transport.extractPages(pageInfos, options);
+  }
+
+  /**
+   * @param {Array<Object>} redactionPatches - Redacted decoded stream patches.
+   * @returns {Promise<Uint8Array>} A promise that is resolved with a
+   *   {Uint8Array} containing a full-rewrite redacted document.
+   */
+  exportRedactedDocument(redactionPatches) {
+    return this._transport.exportRedactedDocument(redactionPatches);
   }
 
   /**
@@ -1099,6 +1116,10 @@ class PDFDocumentProxy {
  *   content items in the items array of TextContent. The default is `false`.
  * @property {boolean} [disableNormalization] - When true the text is *not*
  *   normalized in the worker-thread. The default is `false`.
+ * @property {boolean} [includeTextEditSourceRefs] - When true include
+ *   experimental text edit source references. The default is `false`.
+ * @property {Object} [textEditContentStreamPatch] - Experimental native text
+ *   edit decoded content stream patch to include in text extraction.
  */
 
 /**
@@ -1125,7 +1146,154 @@ class PDFDocumentProxy {
  * @property {string} fontName - Font name used by PDF.js for converted font.
  * @property {boolean} hasEOL - Indicating if the text content is followed by a
  *   line-break.
+ * @property {TextEditSource} [textEditSource] - Experimental source reference
+ *   for native text editing, only present when requested.
  */
+
+/**
+ * Experimental source reference for native text editing.
+ *
+ * @typedef {Object} TextEditSource
+ * @property {boolean} editable - Whether this item maps to a supported source.
+ * @property {string} [reason] - Stable unsupported reason when not editable.
+ * @property {string} [operatorName] - Text showing operator name, e.g. `Tj`.
+ * @property {number} [operatorIndex] - Operator index in the decoded stream.
+ * @property {Array<number>} [operatorRange] - Operator byte range.
+ * @property {Array<number>} [operandRange] - Operand byte range.
+ * @property {Array<number>} [fullByteRange] - Full operator byte range.
+ * @property {Array<Object>} [segments] - Source text/spacing segments.
+ * @property {string} [fontName] - Font resource name at the source operator.
+ * @property {string} [fontLoadedName] - Loaded PDF.js font name.
+ * @property {Object} [operatorFingerprint] - Fingerprint of the source
+ *   operator.
+ */
+
+/**
+ * Experimental source text edit planning parameters.
+ *
+ * @typedef {Object} PlanTextSourceEditParameters
+ * @property {TextEditSource} textEditSource - Source reference to edit.
+ * @property {string} expectedSourceText - Source text expected by the caller.
+ * @property {string} replacementText - Replacement text to validate.
+ * @property {string} [visibleText] - Optional visible text for normalized
+ *   packet/source replacement mapping.
+ * @property {number | null} [editGeneration] - Optional caller generation.
+ * @property {boolean} [includeDecodedStreamPatch] - Include an experimental
+ *   decoded content stream patch when planning succeeds.
+ */
+
+/**
+ * Experimental native redaction planning parameters.
+ *
+ * @typedef {Object} PlanRedactionParameters
+ * @property {Array<Object|Array<number>>} regions - Redaction regions in PDF
+ *   page user space.
+ * @property {boolean} [includeDecodedStreamPatch] - Include an experimental
+ *   decoded content stream patch when planning succeeds.
+ */
+
+/**
+ * Experimental source text move planning parameters.
+ *
+ * @typedef {Object} PlanTextSourceMoveParameters
+ * @property {TextEditSource} textEditSource - Source reference to move.
+ * @property {string} expectedSourceText - Source text expected by the caller.
+ * @property {Array<number>} delta - PDF-space translation `[dx, dy]`.
+ * @property {number | null} [editGeneration] - Optional caller generation.
+ * @property {boolean} [includeDecodedStreamPatch] - Include an experimental
+ *   decoded content stream patch when planning succeeds.
+ */
+
+/**
+ * Experimental source text edit planning result.
+ *
+ * @typedef {Object} TextSourceEditPlan
+ * @property {boolean} ok - Whether planning succeeded.
+ * @property {string} [reason] - Stable unsupported reason when planning failed.
+ * @property {Object} [decodedStreamPatch] - Experimental decoded content
+ *   stream patch when requested.
+ */
+
+/**
+ * Experimental source text edit layout parameters.
+ *
+ * @typedef {Object} BeginTextEditLayoutParameters
+ * @property {TextEditSource} textEditSource - Source reference to inspect.
+ * @property {string} expectedSourceText - Source text expected by the caller.
+ * @property {string | null} [replacementText] - Optional replacement text to
+ *   measure with the source font and text state.
+ * @property {number | null} [editGeneration] - Optional caller generation.
+ * @property {PageViewport} [viewport] - Optional viewport used to append
+ *   viewport-space caret and glyph positions on the display thread.
+ */
+
+/**
+ * Experimental source text edit layout result.
+ *
+ * @typedef {Object} TextEditLayoutSession
+ * @property {boolean} ok - Whether layout proof succeeded.
+ * @property {string} [reason] - Stable unsupported reason when layout failed.
+ * @property {Object} [sourceLayout] - Source glyph/caret layout facts.
+ * @property {Object} [replacementLayout] - Optional replacement layout facts.
+ */
+
+function cloneTextEditLayoutPoint(point, transform) {
+  const viewportPoint = [point.x, point.y];
+  Util.applyTransform(viewportPoint, transform);
+  return {
+    ...point,
+    viewportX: viewportPoint[0],
+    viewportY: viewportPoint[1],
+  };
+}
+
+function cloneTextEditLayoutGlyph(glyph, transform) {
+  const viewportStart = [glyph.x0, glyph.y0];
+  const viewportEnd = [glyph.x1, glyph.y1];
+  Util.applyTransform(viewportStart, transform);
+  Util.applyTransform(viewportEnd, transform);
+  return {
+    ...glyph,
+    viewportX0: viewportStart[0],
+    viewportY0: viewportStart[1],
+    viewportX1: viewportEnd[0],
+    viewportY1: viewportEnd[1],
+  };
+}
+
+function cloneTextEditLayoutWithViewport(layout, transform) {
+  if (!layout) {
+    return layout;
+  }
+  return {
+    ...layout,
+    glyphs: layout.glyphs?.map(glyph =>
+      cloneTextEditLayoutGlyph(glyph, transform)
+    ),
+    insertionPositions: layout.insertionPositions?.map(point =>
+      cloneTextEditLayoutPoint(point, transform)
+    ),
+  };
+}
+
+function addViewportToTextEditLayoutSession(result, viewport) {
+  if (!result?.ok || !viewport?.transform) {
+    return result;
+  }
+  const transform = viewport.transform;
+  return {
+    ...result,
+    viewportTransform: Array.from(transform),
+    sourceLayout: cloneTextEditLayoutWithViewport(
+      result.sourceLayout,
+      transform
+    ),
+    replacementLayout: cloneTextEditLayoutWithViewport(
+      result.replacementLayout,
+      transform
+    ),
+  };
+}
 
 /**
  * Page text marked content part.
@@ -1212,6 +1380,8 @@ class PDFDocumentProxy {
  *   boxes of all PDF operations that render onto the canvas.
  * @property {OperationsFilter} [operationsFilter] - If provided, only
  *   run for which this function returns `true`.
+ * @property {Object} [textEditContentStreamPatch] - Experimental native text
+ *   edit decoded content stream patch to render as a preview.
  */
 
 /**
@@ -1240,6 +1410,8 @@ class PDFDocumentProxy {
  *   The default value is `AnnotationMode.ENABLE`.
  * @property {PrintAnnotationStorage} [printAnnotationStorage]
  * @property {boolean} [isEditing] - Render the page in editing mode.
+ * @property {Object} [textEditContentStreamPatch] - Experimental native text
+ *   edit decoded content stream patch to include in the operator list.
  */
 
 /**
@@ -1441,6 +1613,7 @@ class PDFPageProxy {
     recordImages = false,
     recordOperations = false,
     operationsFilter = null,
+    textEditContentStreamPatch = null,
   }) {
     this._stats?.time("Overall");
 
@@ -1450,6 +1623,10 @@ class PDFPageProxy {
       printAnnotationStorage,
       isEditing
     );
+    if (textEditContentStreamPatch) {
+      intentArgs.cacheKey += "_textEditPreview";
+      this._intentStates.delete(intentArgs.cacheKey);
+    }
     const { renderingIntent, cacheKey } = intentArgs;
     // If there was a pending destroy, cancel it so no cleanup happens during
     // this call to render.
@@ -1482,7 +1659,10 @@ class PDFPageProxy {
       };
 
       this._stats?.time("Page Request");
-      this._pumpOperatorList(intentArgs);
+      this._pumpOperatorList({
+        ...intentArgs,
+        textEditContentStreamPatch,
+      });
     }
 
     const recordForDebugger = !!(
@@ -1629,6 +1809,7 @@ class PDFPageProxy {
     annotationMode = AnnotationMode.ENABLE,
     printAnnotationStorage = null,
     isEditing = false,
+    textEditContentStreamPatch = null,
   } = {}) {
     if (typeof PDFJSDev !== "undefined" && !PDFJSDev.test("GENERIC")) {
       throw new Error("Not implemented: getOperatorList");
@@ -1648,6 +1829,10 @@ class PDFPageProxy {
       isEditing,
       /* isOpList = */ true
     );
+    if (textEditContentStreamPatch) {
+      intentArgs.cacheKey += "_textEditPreview";
+      this._intentStates.delete(intentArgs.cacheKey);
+    }
     const intentState = this._intentStates.getOrInsertComputed(
       intentArgs.cacheKey,
       makeObj
@@ -1667,7 +1852,10 @@ class PDFPageProxy {
       };
 
       this._stats?.time("Page Request");
-      this._pumpOperatorList(intentArgs);
+      this._pumpOperatorList({
+        ...intentArgs,
+        textEditContentStreamPatch,
+      });
     }
     return intentState.opListReadCapability.promise;
   }
@@ -1682,6 +1870,8 @@ class PDFPageProxy {
   streamTextContent({
     includeMarkedContent = false,
     disableNormalization = false,
+    includeTextEditSourceRefs = false,
+    textEditContentStreamPatch = null,
   } = {}) {
     const TEXT_CONTENT_CHUNK_SIZE = 100;
 
@@ -1692,6 +1882,8 @@ class PDFPageProxy {
         pageIndex: this._pageIndex,
         includeMarkedContent: includeMarkedContent === true,
         disableNormalization: disableNormalization === true,
+        includeTextEditSourceRefs: includeTextEditSourceRefs === true,
+        textEditContentStreamPatch,
       },
       {
         highWaterMark: TEXT_CONTENT_CHUNK_SIZE,
@@ -1730,6 +1922,112 @@ class PDFPageProxy {
       textContent.items.push(...value.items);
     }
     return textContent;
+  }
+
+  /**
+   * Plan an experimental native source text edit.
+   * @param {PlanTextSourceEditParameters} params - Source edit parameters.
+   * @returns {Promise<TextSourceEditPlan>} A promise that is resolved with a
+   *   source edit plan or a stable unsupported reason.
+   */
+  planTextSourceEdit({
+    textEditSource,
+    expectedSourceText,
+    replacementText,
+    visibleText = null,
+    editGeneration = null,
+    includeDecodedStreamPatch = false,
+  }) {
+    return this._transport.messageHandler.sendWithPromise(
+      "PlanTextSourceEdit",
+      {
+        pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
+        pageIndex: this._pageIndex,
+        textEditSource,
+        expectedSourceText,
+        replacementText,
+        ...(typeof visibleText === "string" ? { visibleText } : null),
+        editGeneration,
+        ...(includeDecodedStreamPatch === true
+          ? { includeDecodedStreamPatch: true }
+          : null),
+      }
+    );
+  }
+
+  /**
+   * Plan an experimental native redaction for page regions.
+   * @param {PlanRedactionParameters} params - Redaction parameters.
+   * @returns {Promise<Object>} A promise that is resolved with a redaction
+   *   report or a stable unsupported reason.
+   */
+  planRedaction({ regions, includeDecodedStreamPatch = false }) {
+    return this._transport.messageHandler.sendWithPromise("PlanRedaction", {
+      pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
+      pageIndex: this._pageIndex,
+      regions,
+      ...(includeDecodedStreamPatch === true
+        ? { includeDecodedStreamPatch: true }
+        : null),
+    });
+  }
+
+  /**
+   * Plan an experimental native source text move.
+   * @param {PlanTextSourceMoveParameters} params - Source move parameters.
+   * @returns {Promise<TextSourceEditPlan>} A promise that is resolved with a
+   *   source move plan or a stable unsupported reason.
+   */
+  planTextSourceMove({
+    textEditSource,
+    expectedSourceText,
+    delta,
+    editGeneration = null,
+    includeDecodedStreamPatch = false,
+  }) {
+    return this._transport.messageHandler.sendWithPromise(
+      "PlanTextSourceMove",
+      {
+        pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
+        pageIndex: this._pageIndex,
+        textEditSource,
+        expectedSourceText,
+        delta,
+        editGeneration,
+        ...(includeDecodedStreamPatch === true
+          ? { includeDecodedStreamPatch: true }
+          : null),
+      }
+    );
+  }
+
+  /**
+   * Begin an experimental native source text edit layout session.
+   * @param {BeginTextEditLayoutParameters} params - Layout parameters.
+   * @returns {Promise<TextEditLayoutSession>} A promise that is resolved with
+   *   PDF font/text-state based caret facts, or a stable unsupported reason.
+   */
+  async beginTextEditLayout({
+    textEditSource,
+    expectedSourceText,
+    visibleText = null,
+    replacementText = null,
+    editGeneration = null,
+    viewport = null,
+  }) {
+    const result = await this._transport.messageHandler.sendWithPromise(
+      "BeginTextEditLayout",
+      {
+        pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
+        pageIndex: this._pageIndex,
+        textEditSource,
+        expectedSourceText,
+        ...(typeof visibleText === "string" ? { visibleText } : null),
+        replacementText,
+        editGeneration,
+      }
+    );
+    return addViewportToTextEditLayoutSession(result, viewport);
   }
 
   /**
@@ -1852,6 +2150,7 @@ class PDFPageProxy {
     cacheKey,
     annotationStorageSerializable,
     modifiedIds,
+    textEditContentStreamPatch = null,
   }) {
     if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
       assert(
@@ -1870,6 +2169,7 @@ class PDFPageProxy {
         cacheKey,
         annotationStorage: map,
         modifiedIds,
+        textEditContentStreamPatch,
       },
       /* queueingStrategy = */ undefined,
       transfer
@@ -2869,8 +3169,9 @@ class WorkerTransport {
     return this.messageHandler.sendWithPromise("GetData", null);
   }
 
-  saveDocument() {
-    if (this.annotationStorage.size <= 0) {
+  saveDocument(params = {}) {
+    const { textEditPatches = null } = params || {};
+    if (this.annotationStorage.size <= 0 && !textEditPatches?.length) {
       warn(
         "saveDocument called while `annotationStorage` is empty, " +
           "please use the getData-method instead."
@@ -2886,6 +3187,7 @@ class WorkerTransport {
           numPages: this._numPages,
           annotationStorage: map,
           filename: this.#fullReader?.filename ?? null,
+          textEditPatches,
         },
         transfer
       )
@@ -2894,8 +3196,9 @@ class WorkerTransport {
       });
   }
 
-  extractPages(pageInfos) {
+  extractPages(pageInfos, options = null) {
     const params = {
+      customOutlineItems: options?.customOutlineItems || null,
       pageInfos,
     };
     let transfer;
@@ -2932,6 +3235,16 @@ class WorkerTransport {
       .finally(() => {
         this.annotationStorage.resetModified();
       });
+  }
+
+  exportRedactedDocument(redactionPatches) {
+    const params = {
+      redactionPatches,
+    };
+    return this.messageHandler.sendWithPromise(
+      "ExportRedactedDocument",
+      params
+    );
   }
 
   getPage(pageNumber) {

@@ -1,8 +1,106 @@
+# rewirepdf PDF.js Fork
+
+This repository is rewirepdf's working fork of Mozilla's
+[PDF.js](https://mozilla.github.io/pdf.js/). We keep PDF.js as the rendering,
+parsing, text-layer, annotation, printing, and viewer engine, while rewirepdf
+adds a product shell and experimental editing workflows around it.
+
+The main rewirepdf application in this checkout lives in `viewer-next/`. It is a
+React/Vite product interface that opens through explicit Viewer Next entry
+points, such as:
+
+```text
+web/viewer.html?ui=next
+```
+
+The classic PDF.js viewer remains available and should continue to behave like
+the upstream project.
+
+## Why rewirepdf Forked PDF.js
+
+rewirepdf needs deeper PDF editing capabilities than a product shell can provide
+from the outside. This fork exists because we have started modifying PDF.js
+internals to support future native PDF editing, especially source-based text
+editing of existing PDF content.
+
+The long-term goal is to let a user click existing text, edit it inline, and
+save a real replacement into the original PDF content stream using PDF.js'
+own architecture: parser, evaluator, font encoding checks, content stream
+planning, token-level rewriting, and incremental saving. This is intentionally
+different from placing a visual overlay on top of the old text.
+
+The native text edit path is conservative by design. When PDF.js cannot prove
+that an edit is safe, it should return `unsupported` with useful diagnostics
+instead of guessing. Important examples include text whose visible spacing comes
+from `TJ` spacing numbers rather than glyph spaces, page `/Contents` arrays,
+Form XObjects, shared resources, annotation appearances, Type3 charprocs, and
+stale writer targets.
+
+Those capabilities belong in PDF.js core and viewer internals because they
+depend on how PDF.js parses, evaluates, renders, selects, annotates, and tracks
+document state. Viewer Next uses those capabilities from the product UI, but the
+enabling work is intentionally close to the engine.
+
+The goal is not to turn PDF.js core into a rewirepdf product layer. The goal is
+to keep a focused fork where the engine can grow the minimal internal
+affordances needed for editing, while application workflow, policy, and user
+experience remain in `viewer-next/` and adjacent rewirepdf packages.
+
+## What This Fork Is
+
+- A PDF.js editor fork that stays close enough to Mozilla upstream to keep
+  rebasing and syncing practical.
+- A PDF.js engine branch with carefully scoped internal changes for future
+  native PDF editing support.
+- A place for small, guarded integration points that expose stable PDF viewer
+  facts to the rewirepdf UI.
+- The home of `viewer-next/`, where rewirepdf builds product workflows such as
+  editing, signing, page organization, combining PDFs, and future creation or
+  conversion tools.
+
+## Native Text Edit Direction
+
+The experimental native editing work should stay PDF.js-like:
+
+- Source refs are collected during parsing/evaluation and propagated to the text
+  layer as editable metadata.
+- The viewer builds a text edit intent; the worker/core validates fonts,
+  source text, operator fingerprints, layout policy, and target freshness.
+- Content streams are rewritten through a token/filter path that validates the
+  original anchor before replacing operands.
+- Page content streams, multi-stream `/Contents`, and future container-aware
+  targets such as Form XObjects are handled by explicit support rules.
+- Unsupported cases should be structural and diagnosable, not silent visual
+  fallbacks.
+
+The core should not require qpdf WASM, QDF as an intermediate format, external
+textual patches, or whiteout/overlay tricks for this native source text edit
+pipeline.
+
+## rewirepdf Development
+
+From this repository root:
+
+```bash
+npm run viewer-next:dev -- --host 127.0.0.1
+npm run viewer-next:build
+npm run viewer-next:smoke
+```
+
+Use `npm run viewer-next:build` for general Viewer Next changes. Use
+`npm run viewer-next:smoke` when changing upload, rendering, navigation, or PDF
+viewer integration behavior.
+
+## Upstream PDF.js
+
+The sections below are the upstream PDF.js README content and remain useful for
+working with the underlying engine.
+
 # PDF.js [![CI](https://github.com/mozilla/pdf.js/actions/workflows/ci.yml/badge.svg?query=branch%3Amaster)](https://github.com/mozilla/pdf.js/actions/workflows/ci.yml?query=branch%3Amaster) [![codecov](https://codecov.io/gh/mozilla/pdf.js/branch/master/graph/badge.svg)](https://codecov.io/gh/mozilla/pdf.js)
 
 [PDF.js](https://mozilla.github.io/pdf.js/) is a Portable Document Format (PDF) viewer that is built with HTML5.
 
-PDF.js is community-driven and supported by Mozilla. Our goal is to
+PDF.js is community-driven and supported by Mozilla. Its goal is to
 create a general-purpose, web standards-based platform for parsing and
 rendering PDFs.
 

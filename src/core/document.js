@@ -37,6 +37,12 @@ import {
   WidgetAnnotation,
 } from "./annotation.js";
 import {
+  buildTextEditContentStreamPatch,
+  buildTextEditXObjectFormStreamPatch,
+  createTextEditPreviewContentStream,
+  validateCoalescedPageContentsPlan,
+} from "./text_edit_content_stream.js";
+import {
   collectActions,
   getInheritableProperty,
   getNewAnnotationsMap,
@@ -60,6 +66,14 @@ import {
   RefSetCache,
 } from "./primitives.js";
 import { FunctionType, PDFFunctionFactory } from "./function.js";
+import {
+  getPdfEditContainerPathTypeCount,
+  PdfEditXObjectFormUsageGraph,
+  registerTextEditXObjectFormInvocations,
+  resolvePageContentStreamContainer,
+  serializePdfEditContainerDescriptor,
+  XOBJECT_FORM_REPLACE_STREAM_STRATEGY,
+} from "./text_edit_container_graph.js";
 import { getXfaFontDict, getXfaFontName } from "./xfa_fonts.js";
 import { NullStream, Stream } from "./stream.js";
 import { BaseStream } from "./base_stream.js";
@@ -74,6 +88,7 @@ import { ObjectLoader } from "./object_loader.js";
 import { OperatorList } from "./operator_list.js";
 import { PartialEvaluator } from "./evaluator.js";
 import { PDFImage } from "./image.js";
+import { REDACTION_INCREMENTAL_SAVE_BLOCK_REASON } from "./redaction_content_stream.js";
 import { StreamsSequenceStream } from "./decode_stream.js";
 import { stringToPDFString } from "./string_utils.js";
 import { StructTreePage } from "./struct_tree.js";
@@ -81,6 +96,108 @@ import { XFAFactory } from "./xfa/factory.js";
 import { XRef } from "./xref.js";
 
 const LETTER_SIZE_MEDIABOX = [0, 0, 612, 792];
+
+function getTextEditSourceXObjectFormTarget(textEditSource) {
+  const container = textEditSource?.container;
+  let xObjectPathEntry = null;
+  if (Array.isArray(container?.containerPath)) {
+    for (let i = container.containerPath.length - 1; i >= 0; i--) {
+      if (container.containerPath[i]?.type === "xobject-form") {
+        xObjectPathEntry = container.containerPath[i];
+        break;
+      }
+    }
+  }
+  if (!xObjectPathEntry && container?.targetKind !== "xobject-form-stream") {
+    return null;
+  }
+  return {
+    xObjectRef: xObjectPathEntry?.ref || null,
+    xObjectName: xObjectPathEntry?.name || null,
+    streamRef: container?.streamRef || xObjectPathEntry?.ref || null,
+  };
+}
+
+function getRefFromSerializedRef(ref) {
+  return Number.isInteger(ref?.num) && Number.isInteger(ref?.gen)
+    ? Ref.get(ref.num, ref.gen)
+    : null;
+}
+
+function isTextEditSourceEligibleXObjectFormTarget(textEditSource) {
+  const target = textEditSource?.container?.xObjectFormEditTarget;
+  return (
+    target?.eligible === true &&
+    target.strategy === XOBJECT_FORM_REPLACE_STREAM_STRATEGY
+  );
+}
+
+function createTextEditXObjectFormPlanningContainer(container) {
+  const target = container?.xObjectFormEditTarget;
+  if (!target) {
+    return null;
+  }
+  const planningTarget = {
+    ...target,
+    enabled: false,
+    eligible: true,
+    failureReason: null,
+    planningOnly: true,
+    reason: "text-edit-xobject-form-writer-not-enabled",
+  };
+  return {
+    ...container,
+    reason: null,
+    writableStrategy: XOBJECT_FORM_REPLACE_STREAM_STRATEGY,
+    xObjectFormEditTarget: planningTarget,
+  };
+}
+
+function applyTextEditXObjectFormUsageToSource(textEditSource, usageGraph) {
+  const target = getTextEditSourceXObjectFormTarget(textEditSource);
+  const usage = target ? usageGraph?.getFormTargetUsage(target) : null;
+  const isNested =
+    getPdfEditContainerPathTypeCount(
+      textEditSource?.container?.containerPath,
+      "xobject-form"
+    ) > 1;
+  if (!isNested && !usage?.reused) {
+    return textEditSource;
+  }
+  let reason = "text-edit-xobject-form-reused";
+  if (isNested) {
+    reason = "text-edit-nested-container-not-enabled";
+  } else if ((usage?.aliasCount || 0) > 1) {
+    reason = "text-edit-xobject-form-alias-unsupported";
+  }
+  return {
+    ...textEditSource,
+    editable: false,
+    reason,
+    container: {
+      ...(textEditSource.container || null),
+      reason,
+      ...(textEditSource.container?.xObjectFormEditTarget
+        ? {
+            xObjectFormEditTarget: {
+              ...textEditSource.container.xObjectFormEditTarget,
+              eligible: false,
+              reason,
+              failureReason: reason,
+            },
+          }
+        : null),
+      ...(usage
+        ? {
+            reuse: {
+              ...usage,
+              state: "reused",
+            },
+          }
+        : null),
+    },
+  };
+}
 
 class Page {
   #resourcesPromise = null;
@@ -476,6 +593,7 @@ class Page {
     pageIndex = this.pageIndex,
     annotationStorage = null,
     modifiedIds = null,
+    textEditContentStreamPatch = null,
   }) {
     const contentStreamPromise = this.getContentStream();
     const resourcesPromise = this.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
@@ -554,6 +672,15 @@ class Page {
       contentStreamPromise,
       resourcesPromise,
     ]).then(async ([contentStream]) => {
+      const previewContentStream = await createTextEditPreviewContentStream({
+        contentStream,
+        patch: textEditContentStreamPatch,
+      });
+      if (!previewContentStream.ok) {
+        throw new Error(previewContentStream.reason);
+      }
+      contentStream = previewContentStream.stream;
+
       const resources = await this.#getMergedResources(
         contentStream.dict,
         RESOURCES_KEYS_OPERATOR_LIST
@@ -671,22 +798,42 @@ class Page {
     task,
     includeMarkedContent,
     disableNormalization,
+    includeTextEditSourceRefs,
+    textEditContentStreamPatch = null,
     sink,
     intersector = null,
   }) {
     const contentStreamPromise = this.getContentStream();
     const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
     const langPromise = this.pdfManager.ensureCatalog("lang");
+    const xObjectFormUsageGraphPromise = includeTextEditSourceRefs
+      ? this.pdfManager.ensureDoc("getTextEditXObjectFormUsageGraph")
+      : null;
 
-    const [contentStream, , lang] = await Promise.all([
-      contentStreamPromise,
-      resourcesPromise,
-      langPromise,
-    ]);
+    const [baseContentStream, , lang, xObjectFormUsageGraph] =
+      await Promise.all([
+        contentStreamPromise,
+        resourcesPromise,
+        langPromise,
+        xObjectFormUsageGraphPromise,
+      ]);
+    let contentStream = baseContentStream;
+    const previewContentStream = await createTextEditPreviewContentStream({
+      contentStream,
+      patch: textEditContentStreamPatch,
+    });
+    if (!previewContentStream.ok) {
+      throw new Error(previewContentStream.reason);
+    }
+    contentStream = previewContentStream.stream;
+
     const resources = await this.#getMergedResources(
       contentStream.dict,
       RESOURCES_KEYS_TEXT_CONTENT
     );
+    const containerResult = includeTextEditSourceRefs
+      ? resolvePageContentStreamContainer(this.pageDict)
+      : null;
 
     const partialEvaluator = this.#createPartialEvaluator(handler);
 
@@ -696,10 +843,455 @@ class Page {
       resources,
       includeMarkedContent,
       disableNormalization,
+      includeTextEditSourceRefs,
       sink,
       viewBox: this.view,
       lang,
       intersector,
+      ...(containerResult
+        ? {
+            textEditContainer: serializePdfEditContainerDescriptor(
+              containerResult.descriptor
+            ),
+            textEditXObjectFormUsageGraph: xObjectFormUsageGraph,
+          }
+        : null),
+    });
+  }
+
+  async registerTextEditXObjectFormUsage(graph) {
+    const contentStreamPromise = this.getContentStream();
+    const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+    const [contentStream] = await Promise.all([
+      contentStreamPromise,
+      resourcesPromise,
+    ]);
+    const resources = await this.#getMergedResources(
+      contentStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+    registerTextEditXObjectFormInvocations({
+      graph,
+      stream: contentStream,
+      resources,
+      xref: this.xref,
+      pageIndex: this.pageIndex,
+      pageRef: this.ref,
+    });
+  }
+
+  async #planTextSourceEditInXObjectForm({
+    handler,
+    task,
+    textEditSource,
+    expectedSourceText,
+    replacementText,
+    visibleText = null,
+    editGeneration = null,
+    includeDecodedStreamPatch = false,
+  }) {
+    const planningContainer = createTextEditXObjectFormPlanningContainer(
+      textEditSource?.container
+    );
+    const streamRef = getRefFromSerializedRef(
+      planningContainer?.xObjectFormEditTarget?.streamRef ||
+        planningContainer?.streamRef
+    );
+    if (!planningContainer || !(streamRef instanceof Ref)) {
+      const reason = "text-edit-xobject-form-stream-ref-missing";
+      return {
+        ok: false,
+        reason,
+        sourceReason: textEditSource?.reason || null,
+        container: textEditSource?.container || null,
+      };
+    }
+
+    let formStream;
+    try {
+      formStream = this.xref.fetch(streamRef);
+    } catch {
+      formStream = null;
+    }
+    if (!(formStream instanceof BaseStream)) {
+      const reason = "text-edit-xobject-form-stream-ref-missing";
+      return {
+        ok: false,
+        reason,
+        sourceReason: textEditSource?.reason || null,
+        container: textEditSource?.container || null,
+      };
+    }
+    const subtype = formStream.dict?.get("Subtype");
+    if (!(subtype instanceof Name) || subtype.name !== "Form") {
+      return {
+        ok: false,
+        reason: "text-edit-xobject-form-target-not-form",
+        sourceReason: textEditSource?.reason || null,
+        container: textEditSource?.container || null,
+      };
+    }
+
+    await this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+    const resources = await this.#getMergedResources(
+      formStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+    const serializedPlanningContainer =
+      serializePdfEditContainerDescriptor(planningContainer);
+    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const result = await partialEvaluator.getTextContent({
+      stream: formStream,
+      task,
+      resources,
+      includeTextEditSourceRefs: true,
+      disableNormalization: true,
+      viewBox: this.view,
+      textEditContainer: serializedPlanningContainer,
+      textEditPlanRequest: {
+        textEditSource,
+        expectedSourceText,
+        replacementText,
+        ...(typeof visibleText === "string" ? { visibleText } : null),
+        editGeneration,
+        container: serializedPlanningContainer,
+        containerReason: null,
+        ...(includeDecodedStreamPatch === true
+          ? { includeDecodedStreamPatch: true }
+          : null),
+      },
+    });
+
+    return result
+      ? {
+          ...result,
+          ...(includeDecodedStreamPatch === true && result.ok
+            ? {
+                xObjectFormStreamPatch: buildTextEditXObjectFormStreamPatch({
+                  plan: result,
+                }),
+              }
+            : null),
+        }
+      : {
+          ok: false,
+          reason: "text-edit-xobject-form-anchor-not-found",
+          sourceReason: textEditSource?.reason || null,
+          container: textEditSource?.container || null,
+          ...(includeDecodedStreamPatch === true
+            ? {
+                decodedStreamPatch: {
+                  ok: false,
+                  reason: "text-edit-xobject-form-anchor-not-found",
+                },
+              }
+            : null),
+        };
+  }
+
+  async planTextSourceEdit({
+    handler,
+    task,
+    textEditSource,
+    expectedSourceText,
+    replacementText,
+    visibleText = null,
+    editGeneration = null,
+    includeDecodedStreamPatch = false,
+  }) {
+    if (textEditSource?.editable === false) {
+      const xObjectFormUsageGraph = getTextEditSourceXObjectFormTarget(
+        textEditSource
+      )
+        ? await this.pdfManager.ensureDoc("getTextEditXObjectFormUsageGraph")
+        : null;
+      textEditSource = applyTextEditXObjectFormUsageToSource(
+        textEditSource,
+        xObjectFormUsageGraph
+      );
+      if (isTextEditSourceEligibleXObjectFormTarget(textEditSource)) {
+        return this.#planTextSourceEditInXObjectForm({
+          handler,
+          task,
+          textEditSource,
+          expectedSourceText,
+          replacementText,
+          visibleText,
+          editGeneration,
+          includeDecodedStreamPatch,
+        });
+      }
+      const reason = textEditSource.reason || "text-edit-source-not-editable";
+      return {
+        ok: false,
+        reason,
+        sourceReason: textEditSource.reason || null,
+        container: textEditSource.container || null,
+        ...(includeDecodedStreamPatch === true
+          ? {
+              decodedStreamPatch: {
+                ok: false,
+                reason,
+              },
+            }
+          : null),
+      };
+    }
+
+    const contentStreamPromise = this.getContentStream();
+    const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+
+    const [contentStream] = await Promise.all([
+      contentStreamPromise,
+      resourcesPromise,
+    ]);
+    const resources = await this.#getMergedResources(
+      contentStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+    const containerResult = resolvePageContentStreamContainer(this.pageDict);
+
+    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const result = await partialEvaluator.getTextContent({
+      stream: contentStream,
+      task,
+      resources,
+      includeTextEditSourceRefs: true,
+      disableNormalization: true,
+      viewBox: this.view,
+      textEditContainer: serializePdfEditContainerDescriptor(
+        containerResult.descriptor
+      ),
+      textEditPlanRequest: {
+        textEditSource,
+        expectedSourceText,
+        replacementText,
+        ...(typeof visibleText === "string" ? { visibleText } : null),
+        editGeneration,
+        container: serializePdfEditContainerDescriptor(
+          containerResult.descriptor
+        ),
+        containerReason: containerResult.ok ? null : containerResult.reason,
+        ...(includeDecodedStreamPatch === true
+          ? { includeDecodedStreamPatch: true }
+          : null),
+      },
+    });
+
+    if (includeDecodedStreamPatch === true && result?.ok) {
+      const coalescedValidation = await validateCoalescedPageContentsPlan({
+        pageDict: this.pageDict,
+        xref: this.xref,
+        plan: result,
+      });
+      result.contentStreamPatch = coalescedValidation.ok
+        ? buildTextEditContentStreamPatch({
+            pageDict: this.pageDict,
+            pageRef: this.ref,
+            plan: result,
+          })
+        : coalescedValidation;
+    }
+
+    return (
+      result || {
+        ok: false,
+        reason: "text-edit-source-anchor-not-found",
+        ...(includeDecodedStreamPatch === true
+          ? {
+              decodedStreamPatch: {
+                ok: false,
+                reason: "text-edit-source-anchor-not-found",
+              },
+            }
+          : null),
+      }
+    );
+  }
+
+  async planRedaction({
+    handler,
+    task,
+    regions,
+    includeDecodedStreamPatch = false,
+  }) {
+    const contentStreamPromise = this.getContentStream();
+    const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+
+    const [contentStream] = await Promise.all([
+      contentStreamPromise,
+      resourcesPromise,
+    ]);
+    const resources = await this.#getMergedResources(
+      contentStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+
+    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const result = await partialEvaluator.getTextContent({
+      stream: contentStream,
+      task,
+      resources,
+      disableNormalization: true,
+      viewBox: this.view,
+      redactionPlanRequest: {
+        regions,
+        includeDecodedStreamPatch: includeDecodedStreamPatch === true,
+      },
+    });
+
+    if (result?.ok) {
+      result.contentStreamPatch = {
+        ok: false,
+        reason: REDACTION_INCREMENTAL_SAVE_BLOCK_REASON,
+        redaction: result.report,
+      };
+    }
+
+    return (
+      result || {
+        ok: false,
+        reason: "redact-plan-not-run",
+      }
+    );
+  }
+
+  async planTextSourceMove({
+    handler,
+    task,
+    textEditSource,
+    expectedSourceText,
+    delta,
+    editGeneration = null,
+    includeDecodedStreamPatch = false,
+  }) {
+    if (textEditSource?.editable === false) {
+      const xObjectFormUsageGraph = getTextEditSourceXObjectFormTarget(
+        textEditSource
+      )
+        ? await this.pdfManager.ensureDoc("getTextEditXObjectFormUsageGraph")
+        : null;
+      textEditSource = applyTextEditXObjectFormUsageToSource(
+        textEditSource,
+        xObjectFormUsageGraph
+      );
+      const reason = textEditSource.reason || "text-edit-source-not-editable";
+      return {
+        ok: false,
+        reason,
+        sourceReason: textEditSource.reason || null,
+        container: textEditSource.container || null,
+        ...(includeDecodedStreamPatch === true
+          ? {
+              decodedStreamPatch: {
+                ok: false,
+                reason,
+              },
+            }
+          : null),
+      };
+    }
+
+    const contentStreamPromise = this.getContentStream();
+    const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+
+    const [contentStream] = await Promise.all([
+      contentStreamPromise,
+      resourcesPromise,
+    ]);
+    const resources = await this.#getMergedResources(
+      contentStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+    const containerResult = resolvePageContentStreamContainer(this.pageDict);
+
+    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const result = await partialEvaluator.getTextContent({
+      stream: contentStream,
+      task,
+      resources,
+      includeTextEditSourceRefs: true,
+      disableNormalization: true,
+      viewBox: this.view,
+      textEditContainer: serializePdfEditContainerDescriptor(
+        containerResult.descriptor
+      ),
+      textEditPlanRequest: {
+        planKind: "move",
+        textEditSource,
+        expectedSourceText,
+        delta,
+        editGeneration,
+        container: serializePdfEditContainerDescriptor(
+          containerResult.descriptor
+        ),
+        containerReason: containerResult.ok ? null : containerResult.reason,
+        ...(includeDecodedStreamPatch === true
+          ? { includeDecodedStreamPatch: true }
+          : null),
+      },
+    });
+
+    if (includeDecodedStreamPatch === true && result?.ok) {
+      result.contentStreamPatch = buildTextEditContentStreamPatch({
+        pageDict: this.pageDict,
+        pageRef: this.ref,
+        plan: result,
+      });
+    }
+
+    return (
+      result || {
+        ok: false,
+        reason: "text-edit-source-anchor-not-found",
+        ...(includeDecodedStreamPatch === true
+          ? {
+              decodedStreamPatch: {
+                ok: false,
+                reason: "text-edit-source-anchor-not-found",
+              },
+            }
+          : null),
+      }
+    );
+  }
+
+  async beginTextEditLayout({
+    handler,
+    task,
+    textEditSource,
+    expectedSourceText,
+    visibleText = null,
+    replacementText = null,
+    editGeneration = null,
+  }) {
+    const contentStreamPromise = this.getContentStream();
+    const resourcesPromise = this.loadResources(RESOURCES_KEYS_TEXT_CONTENT);
+
+    const [contentStream] = await Promise.all([
+      contentStreamPromise,
+      resourcesPromise,
+    ]);
+    const resources = await this.#getMergedResources(
+      contentStream.dict,
+      RESOURCES_KEYS_TEXT_CONTENT
+    );
+
+    const partialEvaluator = this.#createPartialEvaluator(handler);
+    return partialEvaluator.getTextContent({
+      stream: contentStream,
+      task,
+      resources,
+      includeTextEditSourceRefs: true,
+      disableNormalization: true,
+      viewBox: this.view,
+      textEditLayoutRequest: {
+        textEditSource,
+        expectedSourceText,
+        ...(typeof visibleText === "string" ? { visibleText } : null),
+        replacementText,
+        editGeneration,
+      },
     });
   }
 
@@ -1006,6 +1598,8 @@ function find(stream, signature, limit = 1024, backwards = false) {
  */
 class PDFDocument {
   #pagePromises = new Map();
+
+  #textEditXObjectFormUsageGraphPromise = null;
 
   #version = null;
 
@@ -1392,7 +1986,7 @@ class PDFDocument {
       }
       let fontFamily = descriptor.get("FontFamily");
       // For example, "Wingdings 3" is not a valid font name in the css specs.
-      fontFamily = fontFamily.replaceAll(/ +(\d)/g, "$1");
+      fontFamily = fontFamily.replaceAll(/[ ]+(\d)/g, "$1");
       const fontWeight = descriptor.get("FontWeight");
 
       // Angle is expressed in degrees counterclockwise in PDF
@@ -1721,6 +2315,31 @@ class PDFDocument {
 
     this.#pagePromises.set(pageIndex, promise);
     return promise;
+  }
+
+  async getTextEditXObjectFormUsageGraph() {
+    return (this.#textEditXObjectFormUsageGraphPromise ||= (async () => {
+      const graph = new PdfEditXObjectFormUsageGraph();
+      const pagePromises = [];
+      for (let pageIndex = 0, ii = this.numPages; pageIndex < ii; pageIndex++) {
+        pagePromises.push(
+          this.getPage(pageIndex)
+            .then(page => page.registerTextEditXObjectFormUsage(graph))
+            .catch(reason => {
+              if (this.pdfManager.evaluatorOptions.ignoreErrors) {
+                warn(
+                  "getTextEditXObjectFormUsageGraph - ignoring page " +
+                    `${pageIndex + 1}: "${reason}".`
+                );
+                return;
+              }
+              throw reason;
+            })
+        );
+      }
+      await Promise.all(pagePromises);
+      return graph;
+    })());
   }
 
   async checkFirstPage(recoveryMode = false) {
