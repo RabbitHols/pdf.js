@@ -551,3 +551,220 @@ button:disabled {
   min-height: 0;
   flex: 1;
 }
+
+.mobile-reader-shell {
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: var(--workspace);
+  color: var(--text);
+}
+
+.mobile-reader-topbar {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 10px 12px;
+}
+
+.mobile-reader-topbar div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.mobile-reader-topbar span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mobile-reader-topbar strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-reader-topbar button,
+.mobile-reader-empty > button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 7px;
+  background: var(--primary-button-bg);
+  color: var(--primary-button-text);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.mobile-reader-topbar .symbol,
+.mobile-reader-empty > button .symbol {
+  font-size: 20px;
+}
+
+.mobile-reader-notice {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--warning-line);
+  background: var(--warning-bg);
+  padding: 10px 12px;
+  color: var(--warning);
+}
+
+.mobile-reader-notice .symbol {
+  font-size: 22px;
+}
+
+.mobile-reader-notice span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.mobile-reader-notice strong {
+  font-size: 13px;
+}
+
+.mobile-reader-notice small {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mobile-reader-document {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.mobile-reader-document .pdf-surface-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.mobile-reader-document .pdf-surface-container {
+  padding: 18px 12px 76px;
+}
+
+.mobile-reader-document .pdfViewer .page {
+  max-width: 100%;
+  margin-bottom: 14px;
+}
+
+.mobile-reader-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px 40px 40px 40px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  padding: 7px;
+  box-shadow: var(--panel-shadow);
+}
+
+.mobile-reader-bar button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--button-bg);
+  color: var(--text-strong);
+}
+
+.mobile-reader-bar button:disabled {
+  color: var(--muted);
+}
+
+.mobile-reader-bar span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-reader-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  min-height: 0;
+  padding: 28px 18px;
+  text-align: center;
+}
+
+.mobile-reader-empty > .symbol {
+  color: var(--accent);
+  font-size: 54px;
+}
+
+.mobile-reader-empty h1 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.mobile-reader-empty p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.mobile-reader-recents {
+  display: grid;
+  width: min(100%, 420px);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mobile-reader-recents button {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 10px;
+  color: var(--text);
+  text-align: left;
+}
+
+.mobile-reader-recents button.active {
+  border-color: var(--accent);
+  background: var(--active);
+}
+
+.mobile-reader-recents span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

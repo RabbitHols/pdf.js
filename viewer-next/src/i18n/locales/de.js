@@ -581,7 +581,13 @@ export const de = {
     "Viewer Next kann diesen Linktyp nicht offnen.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next fuhrt fur diese Signatur keine kryptografische Validierung und keine Zertifikatskettenprufung aus.",
+  "Editor disponibile da desktop": "Editor auf Desktop verfugbar",
+  "Modalita lettura": "Lesemodus",
   "pdf.js non segnala firme digitali in questo documento.":
     "pdf.js meldet keine digitalen Signaturen in diesem Dokument.",
+  "Su mobile e tablet Viewer Next apre i PDF solo in lettura.":
+    "Auf Mobilgeraten und Tablets offnet Viewer Next PDFs nur im Lesemodus.",
+  "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop.":
+    "Auf Mobilgeraten kannst du das Dokument lesen. Bearbeitungswerkzeuge sind auf Desktop verfugbar.",
   "{name}-edited.pdf": "{name}-edited.pdf",
 };

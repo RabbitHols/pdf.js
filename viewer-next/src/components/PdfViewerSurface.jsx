@@ -148,6 +148,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     onDocumentLoaded,
     onPdfContextMenu,
     onViewerStateChange,
+    readOnly = false,
     resizeShellToPage = false,
     stampSelection = null,
   },
@@ -263,6 +264,9 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     }
 
     function onContextMenu(event) {
+      if (readOnly) {
+        return;
+      }
       const interactionState =
         surfaceRef.current?.readInteractionStateAtPoint?.({
           clientX: event.clientX,
@@ -359,6 +363,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     onDocumentLoaded,
     onPdfContextMenu,
     onViewerStateChange,
+    readOnly,
   ]);
 
   useEffect(() => {
@@ -396,17 +401,19 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       <div className="pdf-surface-container" ref={containerRef}>
         <div className="pdfViewer" ref={viewerRef}></div>
       </div>
-      <SelectionTransformOverlay
-        onDelete={() => surfaceRef.current?.deleteSelectedAnnotation()}
-        onResetRotation={() =>
-          surfaceRef.current?.resetSelectedEditorRotation?.()
-        }
-        onRotate={() => surfaceRef.current?.rotateSelectedEditorClockwise?.()}
-        onResizeStart={(name, event) =>
-          surfaceRef.current?.startSelectedEditorResize?.(name, event)
-        }
-        viewerInteractionState={viewerInteractionState}
-      />
+      {readOnly ? null : (
+        <SelectionTransformOverlay
+          onDelete={() => surfaceRef.current?.deleteSelectedAnnotation()}
+          onResetRotation={() =>
+            surfaceRef.current?.resetSelectedEditorRotation?.()
+          }
+          onRotate={() => surfaceRef.current?.rotateSelectedEditorClockwise?.()}
+          onResizeStart={(name, event) =>
+            surfaceRef.current?.startSelectedEditorResize?.(name, event)
+          }
+          viewerInteractionState={viewerInteractionState}
+        />
+      )}
     </div>
   );
 });

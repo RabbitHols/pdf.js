@@ -25,6 +25,8 @@ import {
 } from "./app/viewRouting.js";
 import { SideNav } from "./components/sidebars/SideNav.jsx";
 import { TopNav } from "./components/TopNav.jsx";
+import { Icon } from "./components/Icon.jsx";
+import { PdfViewerSurface } from "./components/PdfViewerSurface.jsx";
 import { usePageOrganizerState } from "./hooks/usePageOrganizerState.js";
 import { usePagePreviewSnapshots } from "./hooks/usePagePreviewSnapshots.js";
 import { useEditHistory } from "./hooks/useEditHistory.js";
@@ -277,9 +279,205 @@ function getEditorActionActivation(action) {
   return editorActionActivation[action] || { tool: action };
 }
 
+function isMobileReaderViewport() {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return false;
+  }
+  if (!navigator.maxTouchPoints) {
+    return false;
+  }
+  return window.matchMedia(
+    [
+      "((hover: none) and (pointer: coarse))",
+      "((any-pointer: coarse) and (max-width: 1366px))",
+    ].join(", ")
+  ).matches;
+}
+
+function useMobileReaderMode() {
+  const [isMobileReader, setIsMobileReader] = useState(
+    isMobileReaderViewport
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return undefined;
+    }
+    const queries = [
+      window.matchMedia("((hover: none) and (pointer: coarse))"),
+      window.matchMedia("((any-pointer: coarse) and (max-width: 1366px))"),
+    ];
+    const update = () => setIsMobileReader(isMobileReaderViewport());
+    for (const query of queries) {
+      query.addEventListener("change", update);
+    }
+    update();
+    return () => {
+      for (const query of queries) {
+        query.removeEventListener("change", update);
+      }
+    };
+  }, []);
+
+  return isMobileReader;
+}
+
+function MobileReaderShell({
+  activePdfTabId,
+  closePdfTab,
+  documentInfo,
+  onDocumentLoaded,
+  onOpenFile,
+  onSelectPdfTab,
+  onViewerStateChange,
+  pdfHandleRef,
+  pdfTabs,
+  viewerState,
+}) {
+  const { t } = useTranslation();
+  const inputRef = useRef(null);
+
+  async function onFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) {
+      await onOpenFile(file);
+    }
+  }
+
+  const pageNumber = viewerState.pageNumber || 1;
+  const pagesCount = viewerState.pagesCount || 0;
+
+  return (
+    <div className="mobile-reader-shell">
+      <input
+        accept="application/pdf,.pdf"
+        className="hidden-input"
+        onChange={onFileChange}
+        ref={inputRef}
+        type="file"
+      />
+      <header className="mobile-reader-topbar">
+        <div>
+          <span>{t("Modalita lettura")}</span>
+          <strong>{documentInfo?.name || "Viewer Next"}</strong>
+        </div>
+        <button onClick={() => inputRef.current?.click()} type="button">
+          <Icon>upload_file</Icon>
+          {t("Apri PDF")}
+        </button>
+      </header>
+      <div className="mobile-reader-notice" role="status">
+        <Icon>desktop_windows</Icon>
+        <span>
+          <strong>{t("Editor disponibile da desktop")}</strong>
+          <small>
+            {t(
+              "Su mobile e tablet Viewer Next apre i PDF solo in lettura."
+            )}
+          </small>
+        </span>
+      </div>
+      {documentInfo ? (
+        <main className="mobile-reader-document">
+          <PdfViewerSurface
+            documentInfo={documentInfo}
+            onDocumentLoaded={onDocumentLoaded}
+            onViewerStateChange={onViewerStateChange}
+            readOnly
+            ref={pdfHandleRef}
+          />
+          <nav aria-label={t("Pagina corrente")} className="mobile-reader-bar">
+            <button
+              aria-label={t("Previous page")}
+              disabled={pageNumber <= 1}
+              onClick={() => pdfHandleRef.current?.previousPage()}
+              type="button"
+            >
+              <Icon>chevron_left</Icon>
+            </button>
+            <span>
+              {pagesCount
+                ? t("Page {{page}} of {{count}}", {
+                    count: pagesCount,
+                    page: pageNumber,
+                  })
+                : t("Pagina {{pageNumber}}", { pageNumber })}
+            </span>
+            <button
+              aria-label={t("Next page")}
+              disabled={Boolean(pagesCount) && pageNumber >= pagesCount}
+              onClick={() => pdfHandleRef.current?.nextPage()}
+              type="button"
+            >
+              <Icon>chevron_right</Icon>
+            </button>
+            <button
+              aria-label={t("Zoom out")}
+              onClick={() => pdfHandleRef.current?.zoomOut()}
+              type="button"
+            >
+              <Icon>remove</Icon>
+            </button>
+            <button
+              aria-label={t("Zoom in")}
+              onClick={() => pdfHandleRef.current?.zoomIn()}
+              type="button"
+            >
+              <Icon>add</Icon>
+            </button>
+            <button
+              aria-label={t("Chiudi")}
+              disabled={!activePdfTabId}
+              onClick={() => {
+                if (activePdfTabId) {
+                  closePdfTab(activePdfTabId);
+                }
+              }}
+              type="button"
+            >
+              <Icon>close</Icon>
+            </button>
+          </nav>
+        </main>
+      ) : (
+        <main className="mobile-reader-empty">
+          <Icon>picture_as_pdf</Icon>
+          <h1>{t("Apri o riprendi un PDF")}</h1>
+          <p>
+            {t(
+              "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop."
+            )}
+          </p>
+          <button onClick={() => inputRef.current?.click()} type="button">
+            <Icon>upload_file</Icon>
+            {t("Apri PDF")}
+          </button>
+          {pdfTabs.length ? (
+            <div className="mobile-reader-recents">
+              {pdfTabs.map(tab => (
+                <button
+                  className={tab.id === activePdfTabId ? "active" : ""}
+                  key={tab.id}
+                  onClick={() => onSelectPdfTab(tab.id)}
+                  type="button"
+                >
+                  <Icon>picture_as_pdf</Icon>
+                  <span>{tab.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </main>
+      )}
+    </div>
+  );
+}
+
 export function App() {
   const { t } = useTranslation();
   const { resolvedTheme, setTheme, theme } = useTheme();
+  const isMobileReader = useMobileReaderMode();
   const [view, setView] = useState(() => normalizeView(getInitialView()));
   const [contextSidebarOpen, setContextSidebarOpen] = useState(true);
   const [documentPanelOpen, setDocumentPanelOpen] = useState(false);
@@ -1537,6 +1735,23 @@ export function App() {
     viewerState,
     useSavedSignature,
   ]);
+
+  if (isMobileReader) {
+    return (
+      <MobileReaderShell
+        activePdfTabId={activePdfTabId}
+        closePdfTab={closePdfTab}
+        documentInfo={documentInfo}
+        onDocumentLoaded={handleDocumentLoaded}
+        onOpenFile={openPdfFile}
+        onSelectPdfTab={selectPdfTab}
+        onViewerStateChange={handleViewerStateChange}
+        pdfHandleRef={pdfHandleRef}
+        pdfTabs={pdfTabs}
+        viewerState={viewerState}
+      />
+    );
+  }
 
   return (
     <div

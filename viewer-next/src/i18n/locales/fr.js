@@ -583,7 +583,13 @@ export const fr = {
     "Viewer Next ne peut pas ouvrir ce type de lien.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next n'effectue pas de validation cryptographique ni de verification de chaine de certificats pour cette signature.",
+  "Editor disponibile da desktop": "Editeur disponible sur ordinateur",
+  "Modalita lettura": "Mode lecture",
   "pdf.js non segnala firme digitali in questo documento.":
     "pdf.js ne signale aucune signature numerique dans ce document.",
+  "Su mobile e tablet Viewer Next apre i PDF solo in lettura.":
+    "Sur mobile et tablette, Viewer Next ouvre les PDF en lecture seule.",
+  "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop.":
+    "Sur mobile, vous pouvez lire le document. Les outils de modification sont disponibles sur ordinateur.",
   "{name}-edited.pdf": "{name}-edited.pdf",
 };

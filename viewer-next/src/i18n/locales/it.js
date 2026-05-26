@@ -110,6 +110,8 @@ export const it = {
     "Aggiungi timbri predefiniti o personalizzati.",
   Aspetto: "Aspetto",
   Chiaro: "Chiaro",
+  "Editor disponibile da desktop": "Editor disponibile da desktop",
+  "Modalita lettura": "Modalita lettura",
   "Passa al tema chiaro": "Passa al tema chiaro",
   "Passa al tema scuro": "Passa al tema scuro",
   "Apri o riprendi un PDF": "Apri o riprendi un PDF",
@@ -119,6 +121,10 @@ export const it = {
   "Seleziona una lingua per Viewer Next. La modifica si applica subito e resta salvata in questo browser.":
     "Seleziona una lingua per Viewer Next. La modifica si applica subito e resta salvata in questo browser.",
   Sistema: "Sistema",
+  "Su mobile e tablet Viewer Next apre i PDF solo in lettura.":
+    "Su mobile e tablet Viewer Next apre i PDF solo in lettura.",
+  "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop.":
+    "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop.",
   Tema: "Tema",
   "Modifica, firma e strumenti pagina si attivano sul file aperto.":
     "Modifica, firma e strumenti pagina si attivano sul file aperto.",

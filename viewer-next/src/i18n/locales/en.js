@@ -364,6 +364,7 @@ export const en = {
   "Modifica testo sorgente": "Source text edit",
   "Modifiche PDF": "PDF changes",
   "Modifiche salvabili": "Saveable changes",
+  "Modalita lettura": "Reader mode",
   "Mostra dimensioni testo": "Show text sizes",
   "Caricamento segnalibri...": "Loading bookmarks...",
   "Nessun PDF aperto": "No open PDF",
@@ -636,7 +637,12 @@ export const en = {
     "Viewer Next cannot open this type of link.",
   "Viewer Next non esegue validazione crittografica o verifica della catena certificati per questa firma.":
     "Viewer Next does not perform cryptographic validation or certificate-chain verification for this signature.",
+  "Editor disponibile da desktop": "Editor available on desktop",
   "pdf.js non segnala firme digitali in questo documento.":
     "pdf.js does not report digital signatures in this document.",
+  "Su mobile e tablet Viewer Next apre i PDF solo in lettura.":
+    "On mobile and tablet, Viewer Next opens PDFs in reader mode only.",
+  "Su mobile puoi leggere il documento. Gli strumenti di modifica sono disponibili da desktop.":
+    "On mobile, you can read the document. Editing tools are available on desktop.",
   "{name}-edited.pdf": "{name}-edited.pdf",
 };
