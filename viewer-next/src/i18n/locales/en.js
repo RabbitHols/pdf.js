@@ -49,9 +49,11 @@ export const en = {
   "Password errata": "Incorrect password",
   "Password PDF": "PDF password",
   "Password PDF applicata": "PDF password applied",
+  "Password PDF rimossa": "PDF password removed",
   "Password richiesta per aprire il PDF.":
     "A password is required to open this PDF.",
   "PDF protetto": "Protected PDF",
+  "Restrizioni PDF applicate": "PDF restrictions applied",
   "Proteggi PDF": "Protect PDF",
   "Proteggi un PDF": "Protect a PDF",
   "Protezione PDF in corso...": "Protecting PDF...",
@@ -61,11 +63,72 @@ export const en = {
     "This link will open an external site in a new tab.",
   "Questo PDF richiede una password per essere aperto.":
     "This PDF requires a password to open.",
+  "Password di apertura": "Open password",
+  "Restrizioni file": "File restrictions",
+  "Gestisci password di apertura e restrizioni del PDF.":
+    "Manage the PDF open password and file restrictions.",
   "Imposta password di apertura": "Set open password",
+  "Imposta restrizioni": "Set restrictions",
+  "Aggiorna protezione": "Update protection",
+  "Conferma nuova password": "Confirm new password",
+  "Inserisci la nuova password.": "Enter the new password.",
+  "Inserisci la password attuale del PDF.": "Enter the current PDF password.",
+  "Inserisci sotto la nuova password di apertura.":
+    "Enter the new open password below.",
+  "Scegli se la nuova revisione richiedera una password per aprirsi.":
+    "Choose whether the new revision will require a password to open.",
+  "Scegli se mantenerla, cambiarla o rimuoverla.":
+    "Choose whether to keep, change, or remove it.",
   "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.":
     "The protected revision opens in a new tab and will require the password the next time it is opened.",
+  "La nuova revisione si apre in una nuova scheda e richiedera la nuova password.":
+    "The new revision opens in a new tab and will require the new password.",
+  "La nuova revisione si aprira senza password.":
+    "The new revision will open without a password.",
+  "La nuova revisione si apre in una nuova scheda e mantiene la password attuale.":
+    "The new revision opens in a new tab and keeps the current password.",
+  "La nuova revisione si apre in una nuova scheda senza password di apertura.":
+    "The new revision opens in a new tab without an open password.",
   "Le password non corrispondono.": "Passwords do not match.",
+  "Mantieni password di apertura": "Keep open password",
+  Mantieni: "Keep",
+  Cambia: "Change",
+  Rimuovi: "Remove",
+  "Nessuna password": "No password",
+  "Aggiungi password": "Add password",
+  "Nuova password PDF": "New PDF password",
+  "Password attuale": "Current password",
   "Applica password": "Apply password",
+  "Applica protezione": "Apply protection",
+  "Consenti tutto": "Allow all",
+  "Il PDF si aprira senza prompt, mantenendo i flag permessi.":
+    "The PDF will open without a prompt while keeping the permission flags.",
+  "L'utente dovra inserirla per visualizzare il documento.":
+    "The user will need to enter it to view the document.",
+  "La revisione protetta si apre in una nuova scheda senza chiedere password.":
+    "The protected revision opens in a new tab without asking for a password.",
+  "Richiedi password per aprire il PDF": "Require password to open the PDF",
+  "Scegli cosa consentire dopo l'apertura con password. Alcuni lettori PDF possono ignorare queste restrizioni.":
+    "Choose what to allow after opening with the password. Some PDF readers may ignore these restrictions.",
+  "Scegli almeno una restrizione oppure richiedi una password.":
+    "Choose at least one restriction or require a password.",
+  "Scegli una password o almeno una restrizione.":
+    "Choose a password or at least one restriction.",
+  "Scegli Cambia, Rimuovi oppure modifica una restrizione.":
+    "Choose Change, Remove, or edit a restriction.",
+  "Sempre consentito nei PDF protetti moderni":
+    "Always allowed in modern protected PDFs",
+  "Solo lettura": "Read-only",
+  "Usa ancora la password attuale.": "Keep using the current password.",
+  "Imposta una nuova password di apertura.": "Set a new open password.",
+  "Richiedi una password per aprire il PDF.":
+    "Require a password to open the PDF.",
+  "Queste restrizioni sono indipendenti dalla password di apertura.":
+    "These restrictions are independent from the open password.",
+  "Stai cambiando password o restrizioni del PDF corrente.":
+    "You are changing the current PDF password or restrictions.",
+  "Protezione PDF non riuscita. Controlla la password attuale e riprova.":
+    "Could not protect PDF. Check the current password and try again.",
   Sblocca: "Unlock",
   "Sblocca documento": "Unlock document",
   "Verifica password...": "Checking password...",

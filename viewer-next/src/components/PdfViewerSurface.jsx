@@ -258,6 +258,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     initialFreeTextStyle = null,
     initialTool = null,
     onDocumentLoaded,
+    onPasswordSubmitted,
     onPdfContextMenu,
     onViewerStateChange,
     readOnly = false,
@@ -425,6 +426,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
           setPasswordRequest(current =>
             current?.id === id ? { ...current, submitting: true } : current
           );
+          onPasswordSubmitted?.();
           request.submit(password);
         },
       };
@@ -529,6 +531,7 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
     enableSignatureTools,
     initialTool,
     onDocumentLoaded,
+    onPasswordSubmitted,
     onPdfContextMenu,
     onViewerStateChange,
     readOnly,

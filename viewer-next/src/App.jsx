@@ -524,7 +524,9 @@ export function App() {
   const lastEditorInitialToolRef = useRef("select");
   const lastEditorViewRef = useRef("edit");
   const mergePdfSourcesRef = useRef(new Map());
+  const passwordProtectedPdfIdsRef = useRef(new Set());
   const viewRef = useRef(view);
+  const [passwordProtectedRevision, setPasswordProtectedRevision] = useState(0);
   const pdfActions = usePdfViewerActions(pdfHandleRef);
   const pageOrganizer = usePageOrganizerState(viewerState.pagesCount || 0);
   const viewerInteractionState =
@@ -607,6 +609,14 @@ export function App() {
     pdfTabs,
     selectPdfTab,
   } = usePdfTabs({ navigate });
+  const documentPasswordStatus = useMemo(() => {
+    const documentId = documentInfo?.id || activePdfTabId || null;
+    return {
+      hasOpenPassword: Boolean(
+        documentId && passwordProtectedPdfIdsRef.current.has(documentId)
+      ),
+    };
+  }, [activePdfTabId, documentInfo?.id, passwordProtectedRevision]);
 
   useEffect(() => {
     if (documentInfo || demoPdfLoadStartedRef.current) {
@@ -767,6 +777,15 @@ export function App() {
       pageNumber: 1,
       pagesCount: info.pagesCount,
     }));
+  }, []);
+
+  const handlePasswordSubmitted = useCallback(() => {
+    const documentId = documentInfoRef.current?.id || activePdfTabIdRef.current;
+    if (!documentId || passwordProtectedPdfIdsRef.current.has(documentId)) {
+      return;
+    }
+    passwordProtectedPdfIdsRef.current.add(documentId);
+    setPasswordProtectedRevision(revision => revision + 1);
   }, []);
 
   const handleViewerStateChange = useCallback(nextState => {
@@ -1386,7 +1405,13 @@ export function App() {
   );
 
   const protectPdfWithPassword = useCallback(
-    async ({ userPassword } = {}) => {
+    async ({
+      currentPassword,
+      permissions,
+      passwordAction,
+      requireOpenPassword,
+      userPassword,
+    } = {}) => {
       if (!documentInfo) {
         return null;
       }
@@ -1399,7 +1424,16 @@ export function App() {
         type: "protect-pdf",
       });
       try {
+        const completionMessage =
+          passwordAction === "remove"
+            ? t("Password PDF rimossa")
+            : requireOpenPassword
+              ? t("Password PDF applicata")
+              : t("Restrizioni PDF applicate");
         const exportData = await pdfActions.protectWithPassword({
+          currentPassword,
+          permissions,
+          requireOpenPassword,
           userPassword,
         });
         if (!exportData?.data) {
@@ -1419,14 +1453,17 @@ export function App() {
         await editHistory.recordRevision({
           afterTabId: afterPdf?.id,
           beforeTabId,
-          label: t("Password PDF applicata"),
+          label: completionMessage,
           payload: {
+            permissions,
+            passwordAction,
+            requireOpenPassword,
             sourceKind: exportData.sourceKind || "viewer-export",
           },
           type: "protect-pdf",
         });
         setDocumentActionStatus({
-          message: t("Password PDF applicata"),
+          message: completionMessage,
           state: "done",
           type: "protect-pdf",
         });
@@ -1736,6 +1773,7 @@ export function App() {
       onHighlightColorChange: handleHighlightColorChange,
       onOpenEditorPanel: openQuickEditorPanel,
       onOpenStampPanel: openStampPanelFromToolbar,
+      onPasswordSubmitted: handlePasswordSubmitted,
       onProtectPdfWithPassword: protectPdfWithPassword,
       onSearch: handleSearch,
       onSetDrawTool: activateDrawTool,
@@ -1776,6 +1814,7 @@ export function App() {
     handleDocumentLoaded,
     handleHighlightColorChange,
     handleSearch,
+    handlePasswordSubmitted,
     handleStampSelection,
     handleViewerStateChange,
     highlightColor,
@@ -1931,6 +1970,7 @@ export function App() {
           contextSidebarOpen={contextSidebarOpen}
           documentPanelOpen={documentPanelOpen}
           documentInfo={documentInfo}
+          documentPasswordStatus={documentPasswordStatus}
           editHistory={editHistory}
           navigate={navigate}
           onAddImage={activateImageTool}

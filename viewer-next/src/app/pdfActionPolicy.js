@@ -74,10 +74,6 @@ const actionRequirements = {
     permission: "modify",
     reason: "content",
   },
-  "protect-pdf": {
-    permission: "modify",
-    reason: "content",
-  },
   "rotate-page": {
     permission: ["assemble", "modify"],
     reason: "pages",
@@ -123,6 +119,7 @@ const actionRequirements = {
 const documentActions = new Set([
   ...Object.keys(actionRequirements),
   "download",
+  "protect-pdf",
   "save",
 ]);
 

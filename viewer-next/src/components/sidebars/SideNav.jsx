@@ -18,6 +18,7 @@ export function SideNav({
   contextSidebarOpen,
   documentPanelOpen,
   documentInfo,
+  documentPasswordStatus,
   editHistory,
   navigate,
   onAddImage,
@@ -86,6 +87,7 @@ export function SideNav({
         onGoToPage={onGoToPage}
         onGoToSearchResult={onGoToSearchResult}
         onOpenFullOrganizer={onOpenFullOrganizer}
+        onOpenProtectPanel={() => onOpenEditorPanel?.("protect")}
         onProtectPdfWithPassword={onProtectPdfWithPassword}
         onDeleteSelection={onDeleteSelection}
         onRedo={onRedo}
@@ -97,6 +99,7 @@ export function SideNav({
         onUpdateBookmarkTitle={onUpdateBookmarkTitle}
         pageOrganizer={pageOrganizer}
         pagePreviews={pagePreviews}
+        documentPasswordStatus={documentPasswordStatus}
         viewerState={viewerState}
       />
     ) : null;

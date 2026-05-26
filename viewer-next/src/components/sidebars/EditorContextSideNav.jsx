@@ -18,6 +18,56 @@ const panelTitles = {
 };
 
 const PDF_SEARCH_RESULT_BATCH = 24;
+const defaultProtectPermissions = {
+  accessibility: true,
+  annotations: true,
+  assemble: true,
+  copy: true,
+  forms: true,
+  modify: true,
+  print: true,
+};
+
+const readOnlyProtectPermissions = {
+  accessibility: true,
+  annotations: false,
+  assemble: false,
+  copy: false,
+  forms: false,
+  modify: false,
+  print: true,
+};
+
+const protectPermissionOptions = [
+  { key: "print" },
+  { key: "modify" },
+  { key: "copy" },
+  { key: "annotations" },
+  { key: "forms" },
+  {
+    disabled: true,
+    helper: "Sempre consentito nei PDF protetti moderni",
+    key: "accessibility",
+  },
+  { key: "assemble" },
+];
+
+function getInitialProtectPermissions(viewerState) {
+  const details = viewerState?.pdfSecurity?.permissions?.details;
+  if (!Array.isArray(details) || details.length === 0) {
+    return defaultProtectPermissions;
+  }
+  const permissions = details.reduce(
+    (nextPermissions, detail) => {
+      if (detail?.key in nextPermissions) {
+        nextPermissions[detail.key] = detail.allowed === true;
+      }
+      return nextPermissions;
+    },
+    { ...defaultProtectPermissions, accessibility: true }
+  );
+  return { ...permissions, accessibility: true };
+}
 
 function formatCommentDate(value) {
   const date = new Date(value);
@@ -915,6 +965,12 @@ function getPermissionSummary(permissions, t) {
   });
 }
 
+function hasRestrictedProtectPermissions(permissions) {
+  return protectPermissionOptions.some(
+    ({ disabled, key }) => !disabled && permissions[key] === false
+  );
+}
+
 function SignaturesPanel({ viewerState }) {
   const { t } = useTranslation();
   const pdfSecurity = viewerState.pdfSecurity || {};
@@ -1020,7 +1076,7 @@ function SignaturesPanel({ viewerState }) {
   );
 }
 
-function PermissionsPanel({ viewerState }) {
+function PermissionsPanel({ onOpenProtectPanel, viewerState }) {
   const { t } = useTranslation();
   const pdfSecurity = viewerState.pdfSecurity || {};
   const permissions = pdfSecurity.permissions || {};
@@ -1063,44 +1119,135 @@ function PermissionsPanel({ viewerState }) {
             <span>{t("Nessuna restrizione PDF esplicita rilevata.")}</span>
           </div>
         )}
+        <button
+          className="security-action-button"
+          onClick={onOpenProtectPanel}
+          type="button"
+        >
+          <Icon>shield</Icon>
+          <span>{t("Imposta restrizioni")}</span>
+        </button>
       </section>
     </div>
   );
 }
 
-function ProtectPanel({ onProtectPdfWithPassword, viewerState }) {
+function ProtectPanel({
+  documentPasswordStatus,
+  onProtectPdfWithPassword,
+  viewerState,
+}) {
   const { t } = useTranslation();
+  const hasExistingOpenPassword =
+    documentPasswordStatus?.hasOpenPassword === true;
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [passwordAction, setPasswordAction] = useState(() =>
+    hasExistingOpenPassword ? "keep" : "none"
+  );
+  const [permissions, setPermissions] = useState(() =>
+    getInitialProtectPermissions(viewerState)
+  );
+  const [permissionsEdited, setPermissionsEdited] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const permissionsEditedRef = useRef(false);
+  const currentPasswordRef = useRef(null);
   const passwordRef = useRef(null);
 
   useEffect(() => {
-    requestAnimationFrame(() => passwordRef.current?.focus());
-  }, []);
+    if (!permissionsEditedRef.current) {
+      setPermissions(getInitialProtectPermissions(viewerState));
+    }
+  }, [viewerState.pdfSecurity]);
+
+  useEffect(() => {
+    setPasswordAction(hasExistingOpenPassword ? "keep" : "none");
+    setCurrentPassword("");
+    setPassword("");
+    setConfirmation("");
+    setPermissionsEdited(false);
+    setError("");
+  }, [hasExistingOpenPassword]);
+
+  useEffect(() => {
+    if (
+      hasExistingOpenPassword &&
+      (passwordAction !== "keep" || permissionsEdited)
+    ) {
+      requestAnimationFrame(() => currentPasswordRef.current?.focus());
+      return;
+    }
+    if (passwordAction === "add" || passwordAction === "change") {
+      requestAnimationFrame(() => passwordRef.current?.focus());
+    }
+  }, [hasExistingOpenPassword, passwordAction, permissionsEdited]);
 
   async function submitProtection(event) {
     event.preventDefault();
     if (busy) {
       return;
     }
-    if (!password) {
-      setError(t("Inserisci una password."));
+    const changingPassword =
+      passwordAction === "add" || passwordAction === "change";
+    const keepingPassword = passwordAction === "keep";
+    const requireOpenPassword = changingPassword || keepingPassword;
+    const hasRestrictions = hasRestrictedProtectPermissions(permissions);
+    const needsCurrentPassword =
+      hasExistingOpenPassword && (passwordAction !== "keep" || permissionsEdited);
+    if (
+      hasExistingOpenPassword &&
+      passwordAction === "keep" &&
+      !permissionsEdited
+    ) {
+      setError(t("Scegli Cambia, Rimuovi oppure modifica una restrizione."));
       return;
     }
-    if (password !== confirmation) {
+    if (needsCurrentPassword && !currentPassword) {
+      setError(t("Inserisci la password attuale del PDF."));
+      return;
+    }
+    if (changingPassword && !password) {
+      setError(
+        hasExistingOpenPassword
+          ? t("Inserisci la nuova password.")
+          : t("Inserisci una password.")
+      );
+      return;
+    }
+    if (changingPassword && password !== confirmation) {
       setError(t("Le password non corrispondono."));
+      return;
+    }
+    if (
+      !hasExistingOpenPassword &&
+      passwordAction === "none" &&
+      !hasRestrictions
+    ) {
+      setError(t("Scegli una password o almeno una restrizione."));
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await onProtectPdfWithPassword?.({ userPassword: password });
+      await onProtectPdfWithPassword?.({
+        currentPassword: hasExistingOpenPassword ? currentPassword : "",
+        permissions,
+        passwordAction,
+        requireOpenPassword,
+        userPassword: changingPassword ? password : currentPassword,
+      });
+      setCurrentPassword("");
       setPassword("");
       setConfirmation("");
+      setPermissionsEdited(false);
     } catch {
-      setError(t("Protezione PDF non riuscita."));
+      setError(
+        hasExistingOpenPassword
+          ? t("Protezione PDF non riuscita. Controlla la password attuale e riprova.")
+          : t("Protezione PDF non riuscita.")
+      );
     } finally {
       setBusy(false);
     }
@@ -1117,68 +1264,242 @@ function ProtectPanel({ onProtectPdfWithPassword, viewerState }) {
             <Icon>shield</Icon>
           </span>
           <span>
-            <strong>{t("Imposta password di apertura")}</strong>
+            <strong>{t("Password di apertura")}</strong>
             <small>
-              {t(
-                "Crea una nuova revisione protetta. La password non viene salvata nel browser."
-              )}
+              {hasExistingOpenPassword
+                ? t("Scegli se mantenerla, cambiarla o rimuoverla.")
+                : t(
+                    "Scegli se la nuova revisione richiedera una password per aprirsi."
+                  )}
             </small>
           </span>
         </div>
-        <label className="protect-password-field">
-          <span>{t("Password PDF")}</span>
-          <input
-            aria-invalid={error && !password ? "true" : "false"}
-            autoComplete="new-password"
-            disabled={busy || viewerState.loading}
-            onChange={event => {
-              setPassword(event.target.value);
-              setError("");
-            }}
-            ref={passwordRef}
-            type="password"
-            value={password}
-          />
-        </label>
-        <label className="protect-password-field">
-          <span>{t("Conferma password")}</span>
-          <input
-            aria-invalid={
-              error && password && password !== confirmation ? "true" : "false"
-            }
-            autoComplete="new-password"
-            disabled={busy || viewerState.loading}
-            onChange={event => {
-              setConfirmation(event.target.value);
-              setError("");
-            }}
-            type="password"
-            value={confirmation}
-          />
-        </label>
+        <div className="protect-mode-options">
+          {(hasExistingOpenPassword
+            ? [
+                {
+                  description: t("Usa ancora la password attuale."),
+                  label: t("Mantieni"),
+                  value: "keep",
+                },
+                {
+                  description: t("Imposta una nuova password di apertura."),
+                  label: t("Cambia"),
+                  value: "change",
+                },
+                {
+                  description: t("La nuova revisione si aprira senza password."),
+                  label: t("Rimuovi"),
+                  value: "remove",
+                },
+              ]
+            : [
+                {
+                  description: t("La nuova revisione si aprira senza password."),
+                  label: t("Nessuna password"),
+                  value: "none",
+                },
+                {
+                  description: t("Richiedi una password per aprire il PDF."),
+                  label: t("Aggiungi password"),
+                  value: "add",
+                },
+              ]
+          ).map(option => (
+            <label className="protect-mode-option" key={option.value}>
+              <input
+                checked={passwordAction === option.value}
+                disabled={busy || viewerState.loading}
+                name="protect-password-action"
+                onChange={() => {
+                  setPasswordAction(option.value);
+                  setPassword("");
+                  setConfirmation("");
+                  setError("");
+                }}
+                type="radio"
+                value={option.value}
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        {hasExistingOpenPassword &&
+        (passwordAction !== "keep" || permissionsEdited) ? (
+          <label className="protect-password-field">
+            <span>{t("Password attuale")}</span>
+            <input
+              aria-invalid={error && !currentPassword ? "true" : "false"}
+              autoComplete="current-password"
+              disabled={busy || viewerState.loading}
+              onChange={event => {
+                setCurrentPassword(event.target.value);
+                setError("");
+              }}
+              ref={currentPasswordRef}
+              type="password"
+              value={currentPassword}
+            />
+          </label>
+        ) : null}
+        {passwordAction === "add" || passwordAction === "change" ? (
+          <>
+            <label className="protect-password-field">
+              <span>
+                {hasExistingOpenPassword
+                  ? t("Nuova password PDF")
+                  : t("Password PDF")}
+              </span>
+              <input
+                aria-invalid={error && !password ? "true" : "false"}
+                autoComplete="new-password"
+                disabled={busy || viewerState.loading}
+                onChange={event => {
+                  setPassword(event.target.value);
+                  setError("");
+                }}
+                ref={passwordRef}
+                type="password"
+                value={password}
+              />
+            </label>
+            <label className="protect-password-field">
+              <span>
+                {hasExistingOpenPassword
+                  ? t("Conferma nuova password")
+                  : t("Conferma password")}
+              </span>
+              <input
+                aria-invalid={
+                  error && password && password !== confirmation
+                    ? "true"
+                    : "false"
+                }
+                autoComplete="new-password"
+                disabled={busy || viewerState.loading}
+                onChange={event => {
+                  setConfirmation(event.target.value);
+                  setError("");
+                }}
+                type="password"
+                value={confirmation}
+              />
+            </label>
+          </>
+        ) : null}
         {error ? (
           <div className="protect-password-error" role="alert">
             <Icon>error</Icon>
             <span>{error}</span>
           </div>
         ) : null}
+      </section>
+      <section className="security-section">
+        <p>{t("Autorizzazioni file")}</p>
+        <div className="security-note">
+          {t(
+            "Queste restrizioni sono indipendenti dalla password di apertura."
+          )}
+        </div>
+        <ul className="protect-permission-list">
+          {protectPermissionOptions.map(({ disabled, helper, key }) => {
+            const checked = permissions[key] !== false;
+            return (
+              <li key={key}>
+                <label>
+                  <input
+                    checked={checked}
+                    disabled={disabled || busy || viewerState.loading}
+                    onChange={event => {
+                      const allowed = event.target.checked;
+                      permissionsEditedRef.current = true;
+                      setPermissionsEdited(true);
+                      setPermissions(current => ({
+                        ...current,
+                        [key]: allowed,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>{getPermissionLabel(key, t)}</strong>
+                    <small>
+                      {helper
+                        ? t(helper)
+                        : checked
+                          ? t("Consentito")
+                          : t("Limitato")}
+                    </small>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="protect-permission-presets">
+          <button
+            disabled={busy || viewerState.loading}
+            onClick={() => {
+              permissionsEditedRef.current = true;
+              setPermissionsEdited(true);
+              setPermissions(defaultProtectPermissions);
+            }}
+            type="button"
+          >
+            {t("Consenti tutto")}
+          </button>
+          <button
+            disabled={busy || viewerState.loading}
+            onClick={() => {
+              permissionsEditedRef.current = true;
+              setPermissionsEdited(true);
+              setPermissions(readOnlyProtectPermissions);
+            }}
+            type="button"
+          >
+            {t("Solo lettura")}
+          </button>
+        </div>
         <button
           className="protect-password-submit"
           disabled={busy || viewerState.loading}
           type="submit"
         >
-          <Icon>{busy ? "hourglass_empty" : "lock"}</Icon>
+          <Icon>
+            {busy
+              ? "hourglass_empty"
+              : hasExistingOpenPassword
+                ? "lock_reset"
+                : "lock"}
+          </Icon>
           <span>
-            {busy ? t("Protezione PDF in corso...") : t("Applica password")}
+            {busy
+              ? t("Protezione PDF in corso...")
+              : t("Applica protezione")}
           </span>
         </button>
       </section>
       <section className="security-section">
         <p>{t("Output")}</p>
         <div className="security-note">
-          {t(
-            "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura."
-          )}
+          {passwordAction === "remove"
+            ? t(
+                "La nuova revisione si apre in una nuova scheda senza password di apertura."
+              )
+            : passwordAction === "change" || passwordAction === "add"
+              ? t(
+                  "La nuova revisione si apre in una nuova scheda e richiedera la nuova password."
+                )
+              : passwordAction === "keep"
+                ? t(
+                    "La nuova revisione si apre in una nuova scheda e mantiene la password attuale."
+                  )
+                : t(
+                    "La revisione protetta si apre in una nuova scheda senza chiedere password."
+                  )}
         </div>
       </section>
     </form>
@@ -1187,6 +1508,7 @@ function ProtectPanel({ onProtectPdfWithPassword, viewerState }) {
 
 export function EditorContextSideNav({
   activePanel,
+  documentPasswordStatus,
   editHistory,
   onClose,
   onCancelPendingComment,
@@ -1198,6 +1520,7 @@ export function EditorContextSideNav({
   onGoToPage,
   onGoToComment,
   onOpenFullOrganizer,
+  onOpenProtectPanel,
   onProtectPdfWithPassword,
   onGoToSearchResult,
   onRedo,
@@ -1325,10 +1648,14 @@ export function EditorContextSideNav({
         <SignaturesPanel viewerState={viewerState} />
       ) : null}
       {activePanel === "permissions" ? (
-        <PermissionsPanel viewerState={viewerState} />
+        <PermissionsPanel
+          onOpenProtectPanel={onOpenProtectPanel}
+          viewerState={viewerState}
+        />
       ) : null}
       {activePanel === "protect" ? (
         <ProtectPanel
+          documentPasswordStatus={documentPasswordStatus}
           onProtectPdfWithPassword={onProtectPdfWithPassword}
           viewerState={viewerState}
         />

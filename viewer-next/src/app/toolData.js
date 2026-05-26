@@ -217,7 +217,7 @@ export const pageToolRegistry = [
   {
     id: "protect-pdf",
     category: "protect",
-    descriptionKey: "Proteggi il PDF con password o certificato.",
+    descriptionKey: "Gestisci password di apertura e restrizioni del PDF.",
     editAction: "protect-pdf",
     icon: "shield",
     implemented: true,

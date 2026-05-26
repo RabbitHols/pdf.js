@@ -125,6 +125,12 @@ export function AllToolsView({
                 <span>
                   <strong>{t(tool.titleKey)}</strong>
                   <small>{t(tool.descriptionKey)}</small>
+                  {tool.id === "protect-pdf" ? (
+                    <span className="tool-card-tags">
+                      <span>{t("Password di apertura")}</span>
+                      <span>{t("Restrizioni file")}</span>
+                    </span>
+                  ) : null}
                   <em>
                     {needsDocument
                       ? t("Scegli un PDF per iniziare")

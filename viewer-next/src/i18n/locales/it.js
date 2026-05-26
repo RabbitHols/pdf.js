@@ -84,9 +84,11 @@ export const it = {
   "Password errata": "Password errata",
   "Password PDF": "Password PDF",
   "Password PDF applicata": "Password PDF applicata",
+  "Password PDF rimossa": "Password PDF rimossa",
   "Password richiesta per aprire il PDF.":
     "Serve una password per aprire questo PDF.",
   "PDF protetto": "PDF protetto",
+  "Restrizioni PDF applicate": "Restrizioni PDF applicate",
   "Proteggi PDF": "Proteggi PDF",
   "Proteggi un PDF": "Proteggi un PDF",
   "Protezione PDF in corso...": "Protezione PDF in corso...",
@@ -115,11 +117,75 @@ export const it = {
     "La password non e corretta. Riprova.",
   "Questo PDF richiede una password per essere aperto.":
     "Questo PDF richiede una password per essere aperto.",
+  "Password di apertura": "Password di apertura",
+  "Restrizioni file": "Restrizioni file",
+  "Gestisci password di apertura e restrizioni del PDF.":
+    "Gestisci password di apertura e restrizioni del PDF.",
   "Imposta password di apertura": "Imposta password di apertura",
+  "Imposta restrizioni": "Imposta restrizioni",
+  "Aggiorna protezione": "Aggiorna protezione",
+  "Conferma nuova password": "Conferma nuova password",
+  "Inserisci la nuova password.": "Inserisci la nuova password.",
+  "Inserisci la password attuale del PDF.":
+    "Inserisci la password attuale del PDF.",
+  "Inserisci sotto la nuova password di apertura.":
+    "Inserisci sotto la nuova password di apertura.",
+  "Scegli se la nuova revisione richiedera una password per aprirsi.":
+    "Scegli se la nuova revisione richiedera una password per aprirsi.",
+  "Scegli se mantenerla, cambiarla o rimuoverla.":
+    "Scegli se mantenerla, cambiarla o rimuoverla.",
   "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.":
     "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.",
+  "La nuova revisione si apre in una nuova scheda e richiedera la nuova password.":
+    "La nuova revisione si apre in una nuova scheda e richiedera la nuova password.",
+  "La nuova revisione si aprira senza password.":
+    "La nuova revisione si aprira senza password.",
+  "La nuova revisione si apre in una nuova scheda e mantiene la password attuale.":
+    "La nuova revisione si apre in una nuova scheda e mantiene la password attuale.",
+  "La nuova revisione si apre in una nuova scheda senza password di apertura.":
+    "La nuova revisione si apre in una nuova scheda senza password di apertura.",
   "Le password non corrispondono.": "Le password non corrispondono.",
+  "Mantieni password di apertura": "Mantieni password di apertura",
+  Mantieni: "Mantieni",
+  Cambia: "Cambia",
+  Rimuovi: "Rimuovi",
+  "Nessuna password": "Nessuna password",
+  "Aggiungi password": "Aggiungi password",
+  "Nuova password PDF": "Nuova password PDF",
+  "Password attuale": "Password attuale",
   "Applica password": "Applica password",
+  "Applica protezione": "Applica protezione",
+  "Consenti tutto": "Consenti tutto",
+  "Il PDF si aprira senza prompt, mantenendo i flag permessi.":
+    "Il PDF si aprira senza prompt, mantenendo i flag permessi.",
+  "L'utente dovra inserirla per visualizzare il documento.":
+    "L'utente dovra inserirla per visualizzare il documento.",
+  "La revisione protetta si apre in una nuova scheda senza chiedere password.":
+    "La revisione protetta si apre in una nuova scheda senza chiedere password.",
+  "Richiedi password per aprire il PDF":
+    "Richiedi password per aprire il PDF",
+  "Scegli cosa consentire dopo l'apertura con password. Alcuni lettori PDF possono ignorare queste restrizioni.":
+    "Scegli cosa consentire dopo l'apertura con password. Alcuni lettori PDF possono ignorare queste restrizioni.",
+  "Scegli almeno una restrizione oppure richiedi una password.":
+    "Scegli almeno una restrizione oppure richiedi una password.",
+  "Scegli una password o almeno una restrizione.":
+    "Scegli una password o almeno una restrizione.",
+  "Scegli Cambia, Rimuovi oppure modifica una restrizione.":
+    "Scegli Cambia, Rimuovi oppure modifica una restrizione.",
+  "Sempre consentito nei PDF protetti moderni":
+    "Sempre consentito nei PDF protetti moderni",
+  "Solo lettura": "Solo lettura",
+  "Usa ancora la password attuale.": "Usa ancora la password attuale.",
+  "Imposta una nuova password di apertura.":
+    "Imposta una nuova password di apertura.",
+  "Richiedi una password per aprire il PDF.":
+    "Richiedi una password per aprire il PDF.",
+  "Queste restrizioni sono indipendenti dalla password di apertura.":
+    "Queste restrizioni sono indipendenti dalla password di apertura.",
+  "Stai cambiando password o restrizioni del PDF corrente.":
+    "Stai cambiando password o restrizioni del PDF corrente.",
+  "Protezione PDF non riuscita. Controlla la password attuale e riprova.":
+    "Protezione PDF non riuscita. Controlla la password attuale e riprova.",
   Sblocca: "Sblocca",
   "Sblocca documento": "Sblocca documento",
   "Stamp settings": "Impostazioni timbro",

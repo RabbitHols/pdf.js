@@ -314,13 +314,21 @@ export function createViewerActions({
       }
       return exportData;
     },
-    protectWithPassword: async ({ userPassword } = {}) => {
+    protectWithPassword: async ({
+      currentPassword,
+      permissions,
+      requireOpenPassword,
+      userPassword,
+    } = {}) => {
       const exportData = await getExportData();
       if (!exportData?.data) {
         return null;
       }
       const { protectPdfWithPassword } = await import("./pdfProtection.js");
       const data = await protectPdfWithPassword(exportData.data, {
+        currentPassword,
+        permissions,
+        requireOpenPassword,
         userPassword,
       });
       emitState();

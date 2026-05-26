@@ -168,6 +168,7 @@ function PdfEditingWorkspace({
   onHighlightColorChange,
   onOpenEditorPanel,
   onOpenStampPanel,
+  onPasswordSubmitted,
   onSearch,
   onSetDrawTool,
   onSetTool,
@@ -279,6 +280,7 @@ function PdfEditingWorkspace({
         initialFreeTextStyle={initialFreeTextStyle}
         initialTool={initialTool}
         onDocumentLoaded={onDocumentLoaded}
+        onPasswordSubmitted={onPasswordSubmitted}
         onPdfContextMenu={openContextMenu}
         onViewerStateChange={onViewerStateChange}
         ref={pdfHandleRef}
