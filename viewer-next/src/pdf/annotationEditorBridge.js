@@ -4,6 +4,7 @@ export function createAnnotationEditorBridge({
   initialFreeTextStyle = null,
   pdfjsLib,
   pdfViewer,
+  viewer,
 }) {
   let activeTool = "select";
   let currentHighlightColor = "#ffea00";

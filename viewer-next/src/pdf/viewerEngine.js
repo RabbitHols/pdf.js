@@ -416,6 +416,7 @@ export async function createViewerEngine({
     initialFreeTextStyle,
     pdfjsLib,
     pdfViewer,
+    viewer,
   });
   const wheelZoomController = createWheelZoomController({
     container,
