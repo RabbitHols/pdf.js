@@ -159,7 +159,12 @@ export default defineConfig({
       },
       {
         find: /^@rewirepdf\/pdfjs\/viewer-core$/,
-        replacement: path.resolve(appRoot, "src/pdf/viewerCoreCompat.js"),
+        replacement: path.resolve(
+          repoRoot,
+          usePdfjsSource
+            ? "viewer-next/src/pdf/viewerCoreCompat.js"
+            : "build/components/pdf_viewer.mjs"
+        ),
       },
       {
         find: /^@rewirepdf\/pdfjs\/viewer\.css$/,
