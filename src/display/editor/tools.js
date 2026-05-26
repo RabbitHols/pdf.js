@@ -763,6 +763,8 @@ class AnnotationEditorUIManager {
     hasSelectedText: false,
   };
 
+  #historySequence = 0;
+
   #translation = [0, 0];
 
   #translationTimeoutId = null;
@@ -1198,7 +1200,7 @@ class AnnotationEditorUIManager {
       this.toggleComment(/* editor = */ null);
       editor.comment = null;
     };
-    this.addCommands({ cmd, undo, mustExec: true });
+    this.addCommands({ cmd, undo, historyType: "comment", mustExec: true });
   }
 
   toggleComment(editor, isSelected, visibility = undefined) {
@@ -1786,7 +1788,7 @@ class AnnotationEditorUIManager {
           editor.remove();
         }
       };
-      this.addCommands({ cmd, undo, mustExec: true });
+      this.addCommands({ cmd, undo, historyType: "paste", mustExec: true });
     } catch (ex) {
       warn(`paste: "${ex.message}".`);
     }
@@ -2507,6 +2509,12 @@ class AnnotationEditorUIManager {
    */
   undo() {
     this.#commandManager.undo();
+    this._eventBus.dispatch("editinghistorychanged", {
+      source: this,
+      details: {
+        action: "undo",
+      },
+    });
     this.#dispatchUpdateStates({
       hasSomethingToUndo: this.#commandManager.hasSomethingToUndo(),
       hasSomethingToRedo: true,
@@ -2520,6 +2528,12 @@ class AnnotationEditorUIManager {
    */
   redo() {
     this.#commandManager.redo();
+    this._eventBus.dispatch("editinghistorychanged", {
+      source: this,
+      details: {
+        action: "redo",
+      },
+    });
     this.#dispatchUpdateStates({
       hasSomethingToUndo: true,
       hasSomethingToRedo: this.#commandManager.hasSomethingToRedo(),
@@ -2533,6 +2547,16 @@ class AnnotationEditorUIManager {
    */
   addCommands(params) {
     this.#commandManager.add(params);
+    this._eventBus.dispatch("editinghistorychanged", {
+      source: this,
+      details: {
+        action:
+          params.overwriteIfSameType && params.keepUndo ? "replace" : "add",
+        id: `pdfjs-editor-${Date.now()}-${++this.#historySequence}`,
+        timestamp: Date.now(),
+        type: params.historyType || params.type || "annotation",
+      },
+    });
     this.#dispatchUpdateStates({
       hasSomethingToUndo: true,
       hasSomethingToRedo: false,
@@ -2588,7 +2612,7 @@ class AnnotationEditorUIManager {
       }
     };
 
-    this.addCommands({ cmd, undo, mustExec: true });
+    this.addCommands({ cmd, undo, historyType: "delete", mustExec: true });
   }
 
   commitOrRemove() {
@@ -2703,6 +2727,7 @@ class AnnotationEditorUIManager {
             }
           }
         },
+        historyType: "move",
         mustExec: false,
       });
     }, TIME_TO_WAIT);
@@ -2791,6 +2816,7 @@ class AnnotationEditorUIManager {
           move(editor, savedX, savedY, savedPageIndex);
         }
       },
+      historyType: "move",
       mustExec: true,
     });
 

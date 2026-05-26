@@ -267,48 +267,128 @@ export async function createViewerEngine({
       ...editingState,
       ...(event.details || {}),
     };
+    if (event.details?.hasSomethingToRedo === false) {
+      const entries = annotationHistoryState.entries || [];
+      const position = annotationHistoryState.position ?? -1;
+      if (position < entries.length - 1) {
+        annotationHistoryState = {
+          entries: entries.slice(0, position + 1),
+          position,
+        };
+      }
+    }
     emitState();
   }
   eventBus.on("editingstateschanged", onEditingStatesChanged);
+
+  function normalizeRuntimeHistoryType(type) {
+    const params = pdfjsLib.AnnotationEditorParamsType || {};
+    const typeMap = new Map([
+      [params.CREATE, "create"],
+      [params.DRAW_STEP, "draw"],
+      [params.FREETEXT_COLOR, "freetext"],
+      [params.FREETEXT_OPACITY, "freetext"],
+      [params.FREETEXT_SIZE, "freetext"],
+      [params.HIGHLIGHT_COLOR, "highlight"],
+      [params.HIGHLIGHT_THICKNESS, "highlight"],
+      [params.INK_COLOR, "ink"],
+      [params.INK_COLOR_AND_OPACITY, "ink"],
+      [params.INK_OPACITY, "ink"],
+      [params.INK_THICKNESS, "ink"],
+      [params.RESIZE, "resize"],
+    ]);
+    return typeMap.get(type) || type || "annotation";
+  }
+
+  function getRuntimeHistoryGroup(type) {
+    if (type === "draw" || type === "ink" || type === "shape") {
+      return "draw";
+    }
+    return type || "annotation";
+  }
+
+  function shouldCoalesceRuntimeHistoryEntry(previous, next) {
+    if (!previous || !next) {
+      return false;
+    }
+    if (previous.strategy !== next.strategy) {
+      return false;
+    }
+    const previousGroup = getRuntimeHistoryGroup(previous.type);
+    const nextGroup = getRuntimeHistoryGroup(next.type);
+    if (previousGroup !== nextGroup) {
+      return false;
+    }
+    const elapsed = Math.abs((next.timestamp || 0) - (previous.timestamp || 0));
+    const isDrawCreatePair =
+      previous.type === "draw" &&
+      (next.type === "ink" || next.type === "shape");
+    return previousGroup === "draw" && isDrawCreatePair && elapsed < 1500;
+  }
+
+  function createRuntimeHistoryEntry(details, type) {
+    const payload = details.payload || {};
+    return {
+      id: details.id,
+      payload: {
+        ...payload,
+        destination: payload.destination || {
+          pageNumber: pdfViewer?.currentPageNumber || 1,
+          type,
+        },
+      },
+      strategy: details.strategy || "pdfjs",
+      timestamp: details.timestamp || Date.now(),
+      type,
+    };
+  }
 
   function onEditingHistoryChanged(event) {
     const details = event.details || {};
     const entries = annotationHistoryState.entries || [];
     let nextEntries = entries;
     let nextPosition = annotationHistoryState.position ?? -1;
+    const historyType = normalizeRuntimeHistoryType(details.type);
 
     if (details.action === "add") {
-      nextEntries = [
-        ...entries.slice(0, nextPosition + 1),
-        {
-          id: details.id,
-          payload: details.payload || null,
-          strategy: details.strategy || "pdfjs",
-          timestamp: details.timestamp || Date.now(),
-          type: details.type || "annotation",
-        },
-      ];
-      nextPosition = nextEntries.length - 1;
+      const nextEntry = createRuntimeHistoryEntry(details, historyType);
+      const currentEntries = entries.slice(0, nextPosition + 1);
+      const previousEntry = currentEntries.at(-1) || null;
+      if (shouldCoalesceRuntimeHistoryEntry(previousEntry, nextEntry)) {
+        nextEntries = [
+          ...currentEntries.slice(0, -1),
+          {
+            ...previousEntry,
+            id: nextEntry.id || previousEntry.id,
+            payload: nextEntry.payload || previousEntry.payload || null,
+            timestamp: nextEntry.timestamp,
+            type:
+              getRuntimeHistoryGroup(nextEntry.type) === "draw"
+                ? "ink"
+                : nextEntry.type,
+          },
+        ];
+        nextPosition = nextEntries.length - 1;
+      } else {
+        nextEntries = [...currentEntries, nextEntry];
+        nextPosition = nextEntries.length - 1;
+      }
     } else if (details.action === "replace") {
+      const currentEntries = entries.slice(0, nextPosition + 1);
       if (nextPosition >= 0) {
-        nextEntries = entries.slice();
+        nextEntries = currentEntries.slice();
         nextEntries[nextPosition] = {
           ...nextEntries[nextPosition],
           id: details.id || nextEntries[nextPosition].id,
-          payload: details.payload || nextEntries[nextPosition].payload || null,
+          payload:
+            createRuntimeHistoryEntry(details, historyType).payload ||
+            nextEntries[nextPosition].payload ||
+            null,
           timestamp: details.timestamp || Date.now(),
-          type: details.type || nextEntries[nextPosition].type,
+          type: historyType || nextEntries[nextPosition].type,
         };
       } else {
-        nextEntries = [
-          {
-            id: details.id,
-            payload: details.payload || null,
-            strategy: details.strategy || "pdfjs",
-            timestamp: details.timestamp || Date.now(),
-            type: details.type || "annotation",
-          },
-        ];
+        nextEntries = [createRuntimeHistoryEntry(details, historyType)];
         nextPosition = 0;
       }
     } else if (details.action === "undo") {

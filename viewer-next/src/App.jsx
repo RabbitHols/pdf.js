@@ -300,7 +300,6 @@ export function App() {
   const [stampSelection, setStampSelection] = useState(null);
   const [textStyle, setTextStyle] = useState(defaultTextStyle);
   const pdfHandleRef = useRef(null);
-  const persistedRuntimeHistoryIdsRef = useRef(new Set());
   const nativeHistoryStateRef = useRef({
     activeDocumentId: null,
     redactionPatches: 0,
@@ -1297,37 +1296,6 @@ export function App() {
     view,
     viewerState.loading,
     viewerState.pagesCount,
-  ]);
-
-  useEffect(() => {
-    persistedRuntimeHistoryIdsRef.current = new Set(
-      editHistory.timelineEntries.map(entry => entry.id)
-    );
-  }, [editHistory.documentId, editHistory.timelineEntries]);
-
-  useEffect(() => {
-    if (!editHistory.documentId) {
-      return;
-    }
-    const runtimeEntries = viewerState.editing?.runtimeHistory?.entries || [];
-    for (const entry of runtimeEntries) {
-      if (!entry?.id || persistedRuntimeHistoryIdsRef.current.has(entry.id)) {
-        continue;
-      }
-      persistedRuntimeHistoryIdsRef.current.add(entry.id);
-      editHistory.recordTimeline({
-        id: entry.id,
-        label: entry.label || "",
-        payload: entry.payload || null,
-        timestamp: entry.timestamp || Date.now(),
-        type: entry.type || "annotation",
-        strategy: "pdfjs",
-      });
-    }
-  }, [
-    editHistory,
-    editHistory.documentId,
-    viewerState.editing?.runtimeHistory?.entries,
   ]);
 
   useEffect(() => {

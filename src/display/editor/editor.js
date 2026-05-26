@@ -22,7 +22,12 @@ import {
   ColorManager,
   KeyboardManager,
 } from "./tools.js";
-import { FeatureTest, shadow, unreachable } from "../../shared/util.js";
+import {
+  AnnotationEditorParamsType,
+  FeatureTest,
+  shadow,
+  unreachable,
+} from "../../shared/util.js";
 import { noContextMenu, stopEvent } from "../display_utils.js";
 import { AltText } from "./alt_text.js";
 import { Comment } from "./comment.js";
@@ -187,6 +192,7 @@ class AnnotationEditor {
     this.creationDate = parameters.creationDate || new Date();
     this.modificationDate = parameters.modificationDate || null;
     this.canAddComment = true;
+    this.historyType = parameters.historyType || null;
 
     const {
       rotation,
@@ -906,6 +912,7 @@ class AnnotationEditor {
       cmd: this.#resize.bind(this, newX, newY, newWidth, newHeight),
       undo: this.#resize.bind(this, savedX, savedY, savedWidth, savedHeight),
       mustExec: true,
+      type: AnnotationEditorParamsType.RESIZE,
     });
   }
 

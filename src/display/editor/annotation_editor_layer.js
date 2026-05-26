@@ -660,8 +660,9 @@ class AnnotationEditorLayer {
     const undo = () => {
       editor.remove();
     };
+    const historyType = editor.historyType || editor.editorType || "annotation";
 
-    this.addCommands({ cmd, undo, mustExec: false });
+    this.addCommands({ cmd, undo, historyType, mustExec: false });
   }
 
   getEditorByUID(uid) {

@@ -75,6 +75,9 @@ function getRuntimeHistoryLabel(type, t) {
 }
 
 function getHistoryIcon(type) {
+  if (type === "document") {
+    return "picture_as_pdf";
+  }
   if (type === "delete-page") {
     return "delete";
   }
@@ -103,6 +106,61 @@ function getHistoryIcon(type) {
     return "edit_note";
   }
   return "edit";
+}
+
+function buildLinearHistoryGraph({
+  editHistory,
+  revisionEntries,
+  runtimeEntries,
+  runtimeHistory,
+  t,
+}) {
+  const runtimeIndexById = new Map(
+    runtimeEntries.map((entry, index) => [entry.id, index])
+  );
+  const redoRevisionTimestamp = editHistory?.redoEntry?.timestamp || null;
+  const undoRevisionId = editHistory?.undoEntry?.id || null;
+  const nodes = [
+    ...runtimeEntries.map(entry => {
+      const runtimeIndex = runtimeIndexById.get(entry.id);
+      const isRuntime = Number.isInteger(runtimeIndex);
+      return {
+        entry,
+        id: `runtime-${entry.id}`,
+        isCurrent: isRuntime && runtimeHistory.position === runtimeIndex,
+        isFuture: isRuntime && runtimeIndex > runtimeHistory.position,
+        label: entry.label || getRuntimeHistoryLabel(entry.type, t),
+        timestamp: entry.timestamp || 0,
+        track: "runtime",
+        type: entry.type,
+      };
+    }),
+    ...revisionEntries.map(entry => ({
+      entry,
+      id: `revision-${entry.id}`,
+      isCurrent: undoRevisionId === entry.id,
+      isFuture:
+        Boolean(redoRevisionTimestamp) &&
+        (entry.timestamp || 0) >= redoRevisionTimestamp,
+      label: entry.label,
+      timestamp: entry.timestamp || 0,
+      track: "revision",
+      type: entry.type,
+    })),
+  ].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const hasCurrentNode = nodes.some(node => node.isCurrent);
+  nodes.push({
+    entry: null,
+    id: "history-root-document",
+    isCurrent: !hasCurrentNode && !editHistory?.undoEntry,
+    isFuture: false,
+    label: t("Documento aperto"),
+    note: nodes.length ? "" : t("Nessuna modifica registrata"),
+    timestamp: 0,
+    track: "root",
+    type: "document",
+  });
+  return nodes;
 }
 
 function getContextTargetLabel(target, t) {
@@ -722,18 +780,18 @@ function HistoryPanel({
 }) {
   const { t } = useTranslation();
   const revisionEntries = editHistory?.revisionEntries || [];
-  const persistedTimelineEntries = editHistory?.timelineEntries || [];
   const runtimeHistory = viewerState.editing?.runtimeHistory || {
     entries: [],
     position: -1,
   };
   const runtimeEntries = runtimeHistory.entries || [];
-  const runtimeIds = new Set(runtimeEntries.map(entry => entry.id));
-  const timelineEntries = [
-    ...runtimeEntries,
-    ...persistedTimelineEntries.filter(entry => !runtimeIds.has(entry.id)),
-  ].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-  const hasHistory = timelineEntries.length || revisionEntries.length;
+  const historyGraph = buildLinearHistoryGraph({
+    editHistory,
+    revisionEntries,
+    runtimeEntries,
+    runtimeHistory,
+    t,
+  });
   const canUndo = Boolean(
     viewerState.editing?.hasSomethingToUndo || editHistory?.canUndo
   );
@@ -753,98 +811,70 @@ function HistoryPanel({
           {t("Ripristina")}
         </button>
       </div>
-      {hasHistory ? (
-        <>
-          {timelineEntries.length ? (
-            <section className="history-section">
-              <p>{t("Modifiche annotazioni")}</p>
-              <ol className="history-list">
-                {[...timelineEntries].reverse().map((entry, reverseIndex) => {
-                  const index = runtimeEntries.findIndex(
-                    runtimeEntry => runtimeEntry.id === entry.id
-                  );
-                  const isCurrent = runtimeHistory.position === index;
-                  const isRedo =
-                    index >= 0 && index > runtimeHistory.position;
-                  return (
-                    <li
-                      className={[
-                        "history-list-item",
-                        onSelectHistoryEntry ? "clickable" : "",
-                        isCurrent ? "current" : "",
-                        isRedo ? "future" : "",
-                      ].join(" ")}
-                      key={entry.id}
-                      onClick={() => onSelectHistoryEntry?.(entry)}
-                      onKeyDown={event => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onSelectHistoryEntry?.(entry);
-                        }
-                      }}
-                      role={onSelectHistoryEntry ? "button" : undefined}
-                      tabIndex={onSelectHistoryEntry ? 0 : undefined}
-                    >
-                      <span className="history-item-icon">
-                        <Icon>{getHistoryIcon(entry.type)}</Icon>
+      <section className="history-section">
+        <p>{t("Modifiche annotazioni")}</p>
+        <ol className="history-graph">
+          {historyGraph.map(node => {
+            const isClickable = Boolean(
+              node.entry?.payload?.destination && onSelectHistoryEntry
+            );
+            return (
+              <li
+                className={[
+                  "history-graph-node",
+                  isClickable ? "clickable" : "",
+                  node.isCurrent ? "current" : "",
+                  node.isFuture ? "future" : "",
+                ].join(" ")}
+                data-history-track={node.track}
+                key={node.id}
+                onClick={() => {
+                  if (isClickable) {
+                    onSelectHistoryEntry?.(node.entry);
+                  }
+                }}
+                onKeyDown={event => {
+                  if (
+                    isClickable &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onSelectHistoryEntry?.(node.entry);
+                  }
+                }}
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+              >
+                <span className="history-graph-rail">
+                  <span className="history-graph-dot">
+                    <Icon>{getHistoryIcon(node.type)}</Icon>
+                  </span>
+                </span>
+                <span className="history-graph-card">
+                  <span className="history-graph-title-row">
+                    <strong>{node.label}</strong>
+                    {node.isCurrent ? (
+                      <span className="history-graph-state">
+                        {t("Corrente")}
                       </span>
-                      <span>
-                        <strong>
-                          {entry.label || getRuntimeHistoryLabel(entry.type, t)}
-                        </strong>
-                        <small>{formatHistoryDate(entry.timestamp)}</small>
+                    ) : null}
+                    {node.isFuture ? (
+                      <span className="history-graph-state muted">
+                        {t("Annullata")}
                       </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            </section>
-          ) : null}
-          {revisionEntries.length ? (
-            <section className="history-section">
-              <p>{t("Revisioni documento")}</p>
-              <ol className="history-list">
-                {[...revisionEntries].reverse().map(entry => (
-                  <li
-                    className={
-                      [
-                        "history-list-item",
-                        onSelectHistoryEntry ? "clickable" : "",
-                        editHistory?.undoEntry?.id === entry.id
-                          ? "current"
-                          : "",
-                      ].join(" ")
-                    }
-                    key={entry.id}
-                    onClick={() => onSelectHistoryEntry?.(entry)}
-                    onKeyDown={event => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelectHistoryEntry?.(entry);
-                      }
-                    }}
-                    role={onSelectHistoryEntry ? "button" : undefined}
-                    tabIndex={onSelectHistoryEntry ? 0 : undefined}
-                  >
-                    <span className="history-item-icon">
-                      <Icon>{getHistoryIcon(entry.type)}</Icon>
-                    </span>
-                    <span>
-                      <strong>{entry.label}</strong>
-                      <small>{formatHistoryDate(entry.timestamp)}</small>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ) : null}
-        </>
-      ) : (
-        <div className="history-empty">
-          <Icon>history</Icon>
-          <span>{t("Nessuna modifica registrata")}</span>
-        </div>
-      )}
+                    ) : null}
+                  </span>
+                  {node.note ? (
+                    <small>{node.note}</small>
+                  ) : node.timestamp ? (
+                    <small>{formatHistoryDate(node.timestamp)}</small>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
     </div>
   );
 }
