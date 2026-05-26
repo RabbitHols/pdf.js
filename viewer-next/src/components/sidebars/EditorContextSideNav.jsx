@@ -12,6 +12,7 @@ const panelTitles = {
   history: "Storico modifiche",
   pages: "Pagine",
   permissions: "Autorizzazioni file",
+  protect: "Proteggi PDF",
   search: "Cerca",
   signatures: "Firma digitale",
 };
@@ -1067,6 +1068,123 @@ function PermissionsPanel({ viewerState }) {
   );
 }
 
+function ProtectPanel({ onProtectPdfWithPassword, viewerState }) {
+  const { t } = useTranslation();
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const passwordRef = useRef(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => passwordRef.current?.focus());
+  }, []);
+
+  async function submitProtection(event) {
+    event.preventDefault();
+    if (busy) {
+      return;
+    }
+    if (!password) {
+      setError(t("Inserisci una password."));
+      return;
+    }
+    if (password !== confirmation) {
+      setError(t("Le password non corrispondono."));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await onProtectPdfWithPassword?.({ userPassword: password });
+      setPassword("");
+      setConfirmation("");
+    } catch {
+      setError(t("Protezione PDF non riuscita."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      className="editor-context-content security-context-panel protect-context-panel"
+      onSubmit={submitProtection}
+    >
+      <section className="security-section">
+        <div className="security-status-card">
+          <span className="security-status-icon">
+            <Icon>shield</Icon>
+          </span>
+          <span>
+            <strong>{t("Imposta password di apertura")}</strong>
+            <small>
+              {t(
+                "Crea una nuova revisione protetta. La password non viene salvata nel browser."
+              )}
+            </small>
+          </span>
+        </div>
+        <label className="protect-password-field">
+          <span>{t("Password PDF")}</span>
+          <input
+            aria-invalid={error && !password ? "true" : "false"}
+            autoComplete="new-password"
+            disabled={busy || viewerState.loading}
+            onChange={event => {
+              setPassword(event.target.value);
+              setError("");
+            }}
+            ref={passwordRef}
+            type="password"
+            value={password}
+          />
+        </label>
+        <label className="protect-password-field">
+          <span>{t("Conferma password")}</span>
+          <input
+            aria-invalid={
+              error && password && password !== confirmation ? "true" : "false"
+            }
+            autoComplete="new-password"
+            disabled={busy || viewerState.loading}
+            onChange={event => {
+              setConfirmation(event.target.value);
+              setError("");
+            }}
+            type="password"
+            value={confirmation}
+          />
+        </label>
+        {error ? (
+          <div className="protect-password-error" role="alert">
+            <Icon>error</Icon>
+            <span>{error}</span>
+          </div>
+        ) : null}
+        <button
+          className="protect-password-submit"
+          disabled={busy || viewerState.loading}
+          type="submit"
+        >
+          <Icon>{busy ? "hourglass_empty" : "lock"}</Icon>
+          <span>
+            {busy ? t("Protezione PDF in corso...") : t("Applica password")}
+          </span>
+        </button>
+      </section>
+      <section className="security-section">
+        <p>{t("Output")}</p>
+        <div className="security-note">
+          {t(
+            "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura."
+          )}
+        </div>
+      </section>
+    </form>
+  );
+}
+
 export function EditorContextSideNav({
   activePanel,
   editHistory,
@@ -1080,6 +1198,7 @@ export function EditorContextSideNav({
   onGoToPage,
   onGoToComment,
   onOpenFullOrganizer,
+  onProtectPdfWithPassword,
   onGoToSearchResult,
   onRedo,
   onSavePendingComment,
@@ -1207,6 +1326,12 @@ export function EditorContextSideNav({
       ) : null}
       {activePanel === "permissions" ? (
         <PermissionsPanel viewerState={viewerState} />
+      ) : null}
+      {activePanel === "protect" ? (
+        <ProtectPanel
+          onProtectPdfWithPassword={onProtectPdfWithPassword}
+          viewerState={viewerState}
+        />
       ) : null}
       {activePanel === "pages" ? (
         <PagesContextPanel

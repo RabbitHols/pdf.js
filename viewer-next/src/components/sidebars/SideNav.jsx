@@ -43,6 +43,7 @@ export function SideNav({
   onOpenSignatureDialog,
   onListSavedSignatures,
   onOpenEditorPanel,
+  onProtectPdfWithPassword,
   onDeleteCurrentPage,
   onDeleteSelection,
   onDrawStyleChange,
@@ -85,6 +86,7 @@ export function SideNav({
         onGoToPage={onGoToPage}
         onGoToSearchResult={onGoToSearchResult}
         onOpenFullOrganizer={onOpenFullOrganizer}
+        onProtectPdfWithPassword={onProtectPdfWithPassword}
         onDeleteSelection={onDeleteSelection}
         onRedo={onRedo}
         onSavePendingComment={onSavePendingComment}

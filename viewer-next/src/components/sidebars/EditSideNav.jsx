@@ -79,6 +79,10 @@ export function EditSideNav({
       onOpenContextPanel("pages");
       return;
     }
+    if (action === "protect-pdf") {
+      onOpenContextPanel("protect");
+      return;
+    }
     if (action === "stamp-palette") {
       onOpenContextPanel("stamps");
       return;
@@ -117,6 +121,7 @@ export function EditSideNav({
       "bookmarks-panel": "bookmarks",
       "comments-panel": "comments",
       "pages-panel": "pages",
+      "protect-pdf": "protect",
     };
     const isContextActionActive =
       action && activePanelByAction[action] === activeContextPanel;

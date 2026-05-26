@@ -250,6 +250,10 @@ const editorActionActivation = {
     panel: "pages",
     tool: "select",
   },
+  "protect-pdf": {
+    panel: "protect",
+    tool: "select",
+  },
   "stamp-palette": {
     panel: "stamps",
     tool: "select",
@@ -263,6 +267,10 @@ function getExtractedFilename(name = "document.pdf") {
 function getSplitFilename(name = "document.pdf", index = 1) {
   const suffix = String(index).padStart(2, "0");
   return name.replace(/\.pdf$/i, "") + `-split-${suffix}.pdf`;
+}
+
+function getProtectedFilename(name = "document.pdf") {
+  return name.replace(/\.pdf$/i, "") + "-protected.pdf";
 }
 
 function downloadPdfBytes(bytes, filename) {
@@ -1377,6 +1385,64 @@ export function App() {
     [documentInfo, guardPdfAction, openPdfFile, pageOrganizer, pdfActions, t]
   );
 
+  const protectPdfWithPassword = useCallback(
+    async ({ userPassword } = {}) => {
+      if (!documentInfo) {
+        return null;
+      }
+      if (!guardPdfAction("protect-pdf")) {
+        return null;
+      }
+      setDocumentActionStatus({
+        message: t("Protezione PDF in corso..."),
+        state: "running",
+        type: "protect-pdf",
+      });
+      try {
+        const exportData = await pdfActions.protectWithPassword({
+          userPassword,
+        });
+        if (!exportData?.data) {
+          throw new Error(t("PDF non disponibile"));
+        }
+        const file = new File(
+          [exportData.data],
+          getProtectedFilename(documentInfo.name),
+          { type: "application/pdf" }
+        );
+        const beforeTabId = documentInfo.id;
+        const afterPdf = await openPdfFile(file, {
+          historyDocumentId: documentInfo.historyDocumentId || documentInfo.id,
+          parentTabId: beforeTabId,
+          source: "protect-pdf",
+        });
+        await editHistory.recordRevision({
+          afterTabId: afterPdf?.id,
+          beforeTabId,
+          label: t("Password PDF applicata"),
+          payload: {
+            sourceKind: exportData.sourceKind || "viewer-export",
+          },
+          type: "protect-pdf",
+        });
+        setDocumentActionStatus({
+          message: t("Password PDF applicata"),
+          state: "done",
+          type: "protect-pdf",
+        });
+        return afterPdf;
+      } catch (reason) {
+        setDocumentActionStatus({
+          message: reason?.message || t("Protezione PDF non riuscita"),
+          state: "error",
+          type: "protect-pdf",
+        });
+        throw reason;
+      }
+    },
+    [documentInfo, editHistory, guardPdfAction, openPdfFile, pdfActions, t]
+  );
+
   const deleteCurrentPage = useCallback(async () => {
     const pagesCount = viewerState.pagesCount || 0;
     const pageNumber = viewerState.pageNumber || 1;
@@ -1670,6 +1736,7 @@ export function App() {
       onHighlightColorChange: handleHighlightColorChange,
       onOpenEditorPanel: openQuickEditorPanel,
       onOpenStampPanel: openStampPanelFromToolbar,
+      onProtectPdfWithPassword: protectPdfWithPassword,
       onSearch: handleSearch,
       onSetDrawTool: activateDrawTool,
       onSetTool: activateEditorTool,
@@ -1729,6 +1796,7 @@ export function App() {
     exportPageOrganization,
     extractPages,
     splitPages,
+    protectPdfWithPassword,
     editHistory,
     pageInfo,
     pageOrganizer,
@@ -1888,6 +1956,7 @@ export function App() {
           onOpenSignatureDialog={openSignatureDialog}
           onListSavedSignatures={pdfActions.listSavedSignatures}
           onOpenEditorPanel={openQuickEditorPanel}
+          onProtectPdfWithPassword={protectPdfWithPassword}
           onDeleteCurrentPage={deleteCurrentPage}
           onDeleteSelection={deleteSelectedAnnotation}
           onDrawStyleChange={pdfActions.setDrawStyle}

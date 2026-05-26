@@ -83,9 +83,15 @@ export const it = {
   "Origine pagina {{page}}": "Origine pagina {{page}}",
   "Password errata": "Password errata",
   "Password PDF": "Password PDF",
+  "Password PDF applicata": "Password PDF applicata",
   "Password richiesta per aprire il PDF.":
     "Serve una password per aprire questo PDF.",
   "PDF protetto": "PDF protetto",
+  "Proteggi PDF": "Proteggi PDF",
+  "Proteggi un PDF": "Proteggi un PDF",
+  "Protezione PDF in corso...": "Protezione PDF in corso...",
+  "Protezione PDF non riuscita": "Protezione PDF non riuscita",
+  "Protezione PDF non riuscita.": "Protezione PDF non riuscita.",
   Pink: "Rosa",
   "Preset stamps": "Timbri predefiniti",
   Preview: "Anteprima",
@@ -109,6 +115,11 @@ export const it = {
     "La password non e corretta. Riprova.",
   "Questo PDF richiede una password per essere aperto.":
     "Questo PDF richiede una password per essere aperto.",
+  "Imposta password di apertura": "Imposta password di apertura",
+  "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.":
+    "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.",
+  "Le password non corrispondono.": "Le password non corrispondono.",
+  "Applica password": "Applica password",
   Sblocca: "Sblocca",
   "Sblocca documento": "Sblocca documento",
   "Stamp settings": "Impostazioni timbro",
@@ -124,6 +135,9 @@ export const it = {
   Yellow: "Giallo",
   "Aggiungi timbri predefiniti o personalizzati.":
     "Aggiungi timbri predefiniti o personalizzati.",
+  "Conferma password": "Conferma password",
+  "Crea una nuova revisione protetta. La password non viene salvata nel browser.":
+    "Crea una nuova revisione protetta. La password non viene salvata nel browser.",
   Aspetto: "Aspetto",
   Chiaro: "Chiaro",
   "Editor disponibile da desktop": "Editor disponibile da desktop",

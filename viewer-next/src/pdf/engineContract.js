@@ -1,4 +1,4 @@
-export const VIEWER_NEXT_ENGINE_CONTRACT_VERSION = "0.2.2";
+export const VIEWER_NEXT_ENGINE_CONTRACT_VERSION = "0.2.3";
 
 export const viewerNextEngineContract = Object.freeze({
   version: VIEWER_NEXT_ENGINE_CONTRACT_VERSION,
@@ -25,6 +25,7 @@ export const viewerNextEngineContract = Object.freeze({
     "organizePages",
     "previousPage",
     "print",
+    "protectWithPassword",
     "readInteractionStateAtPoint",
     "resetZoom",
     "redo",

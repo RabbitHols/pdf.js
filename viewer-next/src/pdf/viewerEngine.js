@@ -811,6 +811,7 @@ export async function createViewerEngine({
     organizePages: viewerActions.organizePages,
     print: viewerActions.print,
     previousPage: viewerActions.previousPage,
+    protectWithPassword: viewerActions.protectWithPassword,
     refreshComments: commentBridge.refreshComments,
     resetZoom: viewerActions.resetZoom,
     redo: viewerActions.redo,

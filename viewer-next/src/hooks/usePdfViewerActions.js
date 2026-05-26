@@ -34,6 +34,8 @@ export function usePdfViewerActions(pdfHandleRef) {
       organizePages: options => pdfHandleRef.current?.organizePages(options),
       print: () => pdfHandleRef.current?.print(),
       previousPage: () => pdfHandleRef.current?.previousPage(),
+      protectWithPassword: options =>
+        pdfHandleRef.current?.protectWithPassword(options),
       redo: () => pdfHandleRef.current?.redo(),
       rotateClockwise: () => pdfHandleRef.current?.rotateClockwise(),
       refreshComments: () => pdfHandleRef.current?.refreshComments(),

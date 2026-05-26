@@ -314,6 +314,23 @@ export function createViewerActions({
       }
       return exportData;
     },
+    protectWithPassword: async ({ userPassword } = {}) => {
+      const exportData = await getExportData();
+      if (!exportData?.data) {
+        return null;
+      }
+      const { protectPdfWithPassword } = await import("./pdfProtection.js");
+      const data = await protectPdfWithPassword(exportData.data, {
+        userPassword,
+      });
+      emitState();
+      return {
+        data,
+        kind: "protected",
+        sourceKind: exportData.kind,
+        size: data?.length || data?.byteLength || 0,
+      };
+    },
     organizePages: async ({ insertions, order, replacements, rotations } = {}) => {
       const pdfDocument = getPdfDocument();
       if (!pdfDocument) {

@@ -59,6 +59,7 @@ export function getVisibleEditContentActions({ showDebug = false } = {}) {
 
 export const editOptionActions = [
   ["library_add", "Combina più file", "combine-files"],
+  ["shield", "Proteggi un PDF", "protect-pdf"],
   ["bookmark", "Segnalibri", "bookmarks-panel"],
   ["ink_highlighter", "Redigi un PDF", "native-redact", { debugOnly: true }],
 ];
@@ -216,13 +217,13 @@ export const pageToolRegistry = [
   {
     id: "protect-pdf",
     category: "protect",
-    debugOnly: true,
     descriptionKey: "Proteggi il PDF con password o certificato.",
+    editAction: "protect-pdf",
     icon: "shield",
-    implemented: false,
+    implemented: true,
     requiresDocument: true,
     surfaces: ["all-tools", "side"],
-    target: null,
+    target: "edit",
     titleKey: "Proteggi un PDF",
   },
   {

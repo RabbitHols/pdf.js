@@ -323,6 +323,8 @@ export const PdfViewerSurface = forwardRef(function PdfViewerSurface(
       organizePages: options => surfaceRef.current?.organizePages(options),
       previousPage: () => surfaceRef.current?.previousPage(),
       print: () => surfaceRef.current?.print(),
+      protectWithPassword: options =>
+        surfaceRef.current?.protectWithPassword(options),
       readInteractionStateAtPoint: point =>
         surfaceRef.current?.readInteractionStateAtPoint?.(point),
       redo: () => surfaceRef.current?.redo(),

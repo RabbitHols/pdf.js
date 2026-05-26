@@ -48,13 +48,24 @@ export const en = {
   "La password non e corretta. Riprova.": "The password is incorrect. Try again.",
   "Password errata": "Incorrect password",
   "Password PDF": "PDF password",
+  "Password PDF applicata": "PDF password applied",
   "Password richiesta per aprire il PDF.":
     "A password is required to open this PDF.",
   "PDF protetto": "Protected PDF",
+  "Proteggi PDF": "Protect PDF",
+  "Proteggi un PDF": "Protect a PDF",
+  "Protezione PDF in corso...": "Protecting PDF...",
+  "Protezione PDF non riuscita": "Could not protect PDF",
+  "Protezione PDF non riuscita.": "Could not protect PDF.",
   "Questo link aprira un sito esterno in una nuova scheda.":
     "This link will open an external site in a new tab.",
   "Questo PDF richiede una password per essere aperto.":
     "This PDF requires a password to open.",
+  "Imposta password di apertura": "Set open password",
+  "La revisione protetta si apre in una nuova scheda e richiedera la password alla prossima apertura.":
+    "The protected revision opens in a new tab and will require the password the next time it is opened.",
+  "Le password non corrispondono.": "Passwords do not match.",
+  "Applica password": "Apply password",
   Sblocca: "Unlock",
   "Sblocca documento": "Unlock document",
   "Verifica password...": "Checking password...",
@@ -69,6 +80,7 @@ export const en = {
   "Combinazione non riuscita.": "Could not combine files.",
   "Combinazione PDF...": "Combining PDF...",
   Commenti: "Comments",
+  "Conferma password": "Confirm password",
   "Compila e firma": "Fill and sign",
   "Compila e firma tu stesso/a": "Fill and sign yourself",
   "Comprimi un PDF": "Compress a PDF",
@@ -83,6 +95,8 @@ export const en = {
   "Crea PDF": "Create PDF",
   "Crea PDF da immagini, documenti e altri file.":
     "Create PDFs from images, documents, and other files.",
+  "Crea una nuova revisione protetta. La password non viene salvata nel browser.":
+    "Create a new protected revision. The password is not saved in the browser.",
   "Creazione anteprime pagine...": "Creating page previews...",
   "Callout testo": "Text callout",
   Dimensione: "Size",

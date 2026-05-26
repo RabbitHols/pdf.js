@@ -1346,6 +1346,70 @@
   line-height: 1.45;
 }
 
+.protect-password-field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.protect-password-field input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text-strong);
+  font: inherit;
+  padding: 9px 10px;
+}
+
+.protect-password-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.protect-password-field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.protect-password-error {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--danger);
+  border-radius: 7px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 9px 10px;
+}
+
+.protect-password-submit {
+  display: inline-grid;
+  grid-template-columns: 20px minmax(0, auto);
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 900;
+  padding: 9px 12px;
+}
+
+.protect-password-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .stamp-context-panel {
   display: grid;
   align-content: start;

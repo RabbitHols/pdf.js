@@ -74,6 +74,10 @@ const actionRequirements = {
     permission: "modify",
     reason: "content",
   },
+  "protect-pdf": {
+    permission: "modify",
+    reason: "content",
+  },
   "rotate-page": {
     permission: ["assemble", "modify"],
     reason: "pages",
